@@ -3189,6 +3189,42 @@ func startRESTServer(client *whatsmeow.Client, messageStore *MessageStore, port 
 		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
 	})
 
+	// Sync app state (triggers key requests for missing keys)
+	http.HandleFunc("/api/sync/appstate", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		ctx := context.Background()
+		var errors []string
+
+		// Try to sync all app state types - this will request missing keys
+		for _, name := range []appstate.WAPatchName{
+			appstate.WAPatchCriticalBlock,
+			appstate.WAPatchCriticalUnblockLow,
+			appstate.WAPatchRegularHigh,
+			appstate.WAPatchRegular,
+			appstate.WAPatchRegularLow,
+		} {
+			err := client.FetchAppState(ctx, name, true, false)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("%s: %v", name, err))
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if len(errors) > 0 {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "Some app states failed to sync - keys may be requested from phone",
+				"errors":  errors,
+			})
+		} else {
+			json.NewEncoder(w).Encode(GenericResponse{Success: true, Message: "All app states synced successfully"})
+		}
+	})
+
 	// Start the server
 	serverAddr := fmt.Sprintf(":%d", port)
 	fmt.Printf("Starting REST API server on %s...\n", serverAddr)
