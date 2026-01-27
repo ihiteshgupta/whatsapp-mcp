@@ -726,11 +726,11 @@ def send_audio_message(recipient: str, media_path: str) -> Tuple[bool, str]:
 
 def download_media(message_id: str, chat_jid: str) -> Optional[str]:
     """Download media from a message and return the local file path.
-    
+
     Args:
         message_id: The ID of the message containing the media
         chat_jid: The JID of the chat containing the message
-    
+
     Returns:
         The local file path if download was successful, None otherwise
     """
@@ -740,9 +740,9 @@ def download_media(message_id: str, chat_jid: str) -> Optional[str]:
             "message_id": message_id,
             "chat_jid": chat_jid
         }
-        
+
         response = requests.post(url, json=payload)
-        
+
         if response.status_code == 200:
             result = response.json()
             if result.get("success", False):
@@ -755,7 +755,7 @@ def download_media(message_id: str, chat_jid: str) -> Optional[str]:
         else:
             print(f"Error: HTTP {response.status_code} - {response.text}")
             return None
-            
+
     except requests.RequestException as e:
         print(f"Request error: {str(e)}")
         return None
@@ -765,3 +765,495 @@ def download_media(message_id: str, chat_jid: str) -> Optional[str]:
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return None
+
+
+# ============== MESSAGE FEATURES ==============
+
+def react_to_message(chat_jid: str, message_id: str, sender: str, emoji: str) -> Tuple[bool, str]:
+    """React to a message with an emoji."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/message/react"
+        payload = {
+            "chat_jid": chat_jid,
+            "message_id": message_id,
+            "sender": sender,
+            "emoji": emoji
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def reply_to_message(chat_jid: str, message_id: str, quoted_sender: str, message: str, media_path: Optional[str] = None) -> Tuple[bool, str]:
+    """Reply to a specific message."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/message/reply"
+        payload = {
+            "chat_jid": chat_jid,
+            "message_id": message_id,
+            "quoted_sender": quoted_sender,
+            "message": message
+        }
+        if media_path:
+            payload["media_path"] = media_path
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def delete_message(chat_jid: str, message_id: str, sender: str, for_all: bool = True) -> Tuple[bool, str]:
+    """Delete a message."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/message/delete"
+        payload = {
+            "chat_jid": chat_jid,
+            "message_id": message_id,
+            "sender": sender,
+            "for_all": for_all
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def edit_message(chat_jid: str, message_id: str, new_text: str) -> Tuple[bool, str]:
+    """Edit a sent message."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/message/edit"
+        payload = {
+            "chat_jid": chat_jid,
+            "message_id": message_id,
+            "new_text": new_text
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+# ============== CHAT MANAGEMENT ==============
+
+def mark_chat_read(chat_jid: str, message_ids: List[str], sender: str) -> Tuple[bool, str]:
+    """Mark messages as read."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/read"
+        payload = {
+            "chat_jid": chat_jid,
+            "message_ids": message_ids,
+            "sender": sender
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+# ============== GROUP MANAGEMENT ==============
+
+def create_group(name: str, participants: List[str]) -> Tuple[bool, str, Optional[str]]:
+    """Create a new group."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/create"
+        payload = {
+            "name": name,
+            "participants": participants
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response"), result.get("group_jid")
+    except Exception as e:
+        return False, f"Error: {str(e)}", None
+
+
+def get_group_info(group_jid: str) -> dict:
+    """Get information about a group."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/info"
+        payload = {"group_jid": group_jid}
+        response = requests.post(url, json=payload)
+        return response.json()
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+
+def add_group_members(group_jid: str, participants: List[str]) -> Tuple[bool, str]:
+    """Add members to a group."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/members/add"
+        payload = {
+            "group_jid": group_jid,
+            "participants": participants
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def remove_group_members(group_jid: str, participants: List[str]) -> Tuple[bool, str]:
+    """Remove members from a group."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/members/remove"
+        payload = {
+            "group_jid": group_jid,
+            "participants": participants
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def promote_group_admin(group_jid: str, participants: List[str]) -> Tuple[bool, str]:
+    """Promote members to admin."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/admin/promote"
+        payload = {
+            "group_jid": group_jid,
+            "participants": participants
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def demote_group_admin(group_jid: str, participants: List[str]) -> Tuple[bool, str]:
+    """Demote admins to regular members."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/admin/demote"
+        payload = {
+            "group_jid": group_jid,
+            "participants": participants
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def set_group_name(group_jid: str, name: str) -> Tuple[bool, str]:
+    """Set group name."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/name"
+        payload = {
+            "group_jid": group_jid,
+            "name": name
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def set_group_topic(group_jid: str, topic: str) -> Tuple[bool, str]:
+    """Set group description/topic."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/topic"
+        payload = {
+            "group_jid": group_jid,
+            "topic": topic
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def set_group_photo(group_jid: str, photo_path: str) -> Tuple[bool, str]:
+    """Set group photo."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/photo"
+        payload = {
+            "group_jid": group_jid,
+            "photo_path": photo_path
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def get_group_invite_link(group_jid: str) -> Tuple[bool, str, Optional[str]]:
+    """Get group invite link."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/invite"
+        payload = {"group_jid": group_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response"), result.get("invite_link")
+    except Exception as e:
+        return False, f"Error: {str(e)}", None
+
+
+def revoke_group_invite(group_jid: str) -> Tuple[bool, str, Optional[str]]:
+    """Revoke and get new group invite link."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/invite/revoke"
+        payload = {"group_jid": group_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response"), result.get("invite_link")
+    except Exception as e:
+        return False, f"Error: {str(e)}", None
+
+
+def join_group_via_invite(invite_link: str) -> Tuple[bool, str, Optional[str]]:
+    """Join a group using an invite link."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/join"
+        payload = {"invite_link": invite_link}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response"), result.get("group_jid")
+    except Exception as e:
+        return False, f"Error: {str(e)}", None
+
+
+def leave_group(group_jid: str) -> Tuple[bool, str]:
+    """Leave a group."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/group/leave"
+        payload = {"group_jid": group_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+# ============== PROFILE & PRIVACY ==============
+
+def get_profile() -> dict:
+    """Get current user's profile."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/profile"
+        response = requests.get(url)
+        return response.json()
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+
+def set_profile_photo(photo_path: str) -> Tuple[bool, str]:
+    """Set profile photo."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/profile/photo"
+        payload = {"photo_path": photo_path}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def get_privacy_settings() -> dict:
+    """Get privacy settings."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/privacy"
+        response = requests.get(url)
+        return response.json()
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+
+def block_contact(jid: str) -> Tuple[bool, str]:
+    """Block a contact."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/contact/block"
+        payload = {"jid": jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def unblock_contact(jid: str) -> Tuple[bool, str]:
+    """Unblock a contact."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/contact/unblock"
+        payload = {"jid": jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def get_blocked_contacts() -> dict:
+    """Get list of blocked contacts."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/contact/blocked"
+        response = requests.get(url)
+        return response.json()
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+
+# ============== PRESENCE ==============
+
+def subscribe_presence(jid: str) -> Tuple[bool, str]:
+    """Subscribe to presence updates for a contact."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/presence/subscribe"
+        payload = {"jid": jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def send_typing_indicator(chat_jid: str, typing: bool = True) -> Tuple[bool, str]:
+    """Send typing indicator."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/presence/typing"
+        payload = {
+            "chat_jid": chat_jid,
+            "typing": typing
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def send_recording_indicator(chat_jid: str, recording: bool = True) -> Tuple[bool, str]:
+    """Send recording indicator."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/presence/recording"
+        payload = {
+            "chat_jid": chat_jid,
+            "recording": recording
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def set_presence_online() -> Tuple[bool, str]:
+    """Set presence to online."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/presence/online"
+        response = requests.post(url)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def set_presence_offline() -> Tuple[bool, str]:
+    """Set presence to offline."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/presence/offline"
+        response = requests.post(url)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+# ============== STATUS/STORIES ==============
+
+def post_text_status(text: str) -> Tuple[bool, str]:
+    """Post a text status."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/status/text"
+        payload = {"text": text}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def post_image_status(media_path: str, caption: Optional[str] = None) -> Tuple[bool, str]:
+    """Post an image status."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/status/image"
+        payload = {"media_path": media_path}
+        if caption:
+            payload["caption"] = caption
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+# ============== UTILITIES ==============
+
+def send_location(chat_jid: str, latitude: float, longitude: float, name: Optional[str] = None, address: Optional[str] = None) -> Tuple[bool, str]:
+    """Send a location message."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/message/location"
+        payload = {
+            "chat_jid": chat_jid,
+            "latitude": latitude,
+            "longitude": longitude
+        }
+        if name:
+            payload["name"] = name
+        if address:
+            payload["address"] = address
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def send_contact_card(chat_jid: str, display_name: str, phone_number: str) -> Tuple[bool, str]:
+    """Send a contact card."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/message/contact"
+        payload = {
+            "chat_jid": chat_jid,
+            "display_name": display_name,
+            "phone_number": phone_number
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown response")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def check_phone_numbers(phone_numbers: List[str]) -> dict:
+    """Check if phone numbers are registered on WhatsApp."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/contact/check"
+        payload = {"phone_numbers": phone_numbers}
+        response = requests.post(url, json=payload)
+        return response.json()
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+
+def get_contact_info(jid: str) -> dict:
+    """Get information about a contact."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/contact/info"
+        payload = {"jid": jid}
+        response = requests.post(url, json=payload)
+        return response.json()
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}

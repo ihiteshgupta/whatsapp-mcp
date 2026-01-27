@@ -202,6 +202,284 @@ type SendMessageRequest struct {
 	MediaPath string `json:"media_path,omitempty"`
 }
 
+// ============== NEW REQUEST/RESPONSE TYPES ==============
+
+// GenericResponse for simple success/failure responses
+type GenericResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// ChatRequest for chat-related operations
+type ChatRequest struct {
+	ChatJID string `json:"chat_jid"`
+}
+
+// MuteChatRequest for muting chats with duration
+type MuteChatRequest struct {
+	ChatJID  string `json:"chat_jid"`
+	Duration int64  `json:"duration"` // Duration in seconds, 0 for indefinite, -1 to unmute
+}
+
+// ReactRequest for message reactions
+type ReactRequest struct {
+	ChatJID   string `json:"chat_jid"`
+	MessageID string `json:"message_id"`
+	Sender    string `json:"sender"`
+	Emoji     string `json:"emoji"` // Empty string to remove reaction
+}
+
+// ReplyRequest for replying to messages
+type ReplyRequest struct {
+	ChatJID         string `json:"chat_jid"`
+	MessageID       string `json:"message_id"`
+	QuotedSender    string `json:"quoted_sender"`
+	Message         string `json:"message"`
+	MediaPath       string `json:"media_path,omitempty"`
+}
+
+// ForwardRequest for forwarding messages
+type ForwardRequest struct {
+	FromChatJID string `json:"from_chat_jid"`
+	ToChatJID   string `json:"to_chat_jid"`
+	MessageID   string `json:"message_id"`
+}
+
+// DeleteMessageRequest for deleting messages
+type DeleteMessageRequest struct {
+	ChatJID   string `json:"chat_jid"`
+	MessageID string `json:"message_id"`
+	Sender    string `json:"sender"`
+	ForAll    bool   `json:"for_all"` // true to delete for everyone
+}
+
+// StarMessageRequest for starring messages
+type StarMessageRequest struct {
+	ChatJID   string `json:"chat_jid"`
+	MessageID string `json:"message_id"`
+	Star      bool   `json:"star"` // true to star, false to unstar
+}
+
+// EditMessageRequest for editing sent messages
+type EditMessageRequest struct {
+	ChatJID   string `json:"chat_jid"`
+	MessageID string `json:"message_id"`
+	NewText   string `json:"new_text"`
+}
+
+// CreateGroupRequest for creating groups
+type CreateGroupRequest struct {
+	Name         string   `json:"name"`
+	Participants []string `json:"participants"` // List of JIDs
+}
+
+// CreateGroupResponse contains the new group info
+type CreateGroupResponse struct {
+	Success  bool   `json:"success"`
+	Message  string `json:"message"`
+	GroupJID string `json:"group_jid,omitempty"`
+}
+
+// GroupMembersRequest for adding/removing group members
+type GroupMembersRequest struct {
+	GroupJID     string   `json:"group_jid"`
+	Participants []string `json:"participants"` // List of JIDs
+}
+
+// GroupAdminRequest for promoting/demoting admins
+type GroupAdminRequest struct {
+	GroupJID    string   `json:"group_jid"`
+	Participants []string `json:"participants"` // List of JIDs
+}
+
+// GroupInfoRequest for getting/updating group info
+type GroupInfoRequest struct {
+	GroupJID string `json:"group_jid"`
+}
+
+// GroupInfoResponse contains group details
+type GroupInfoResponse struct {
+	Success      bool     `json:"success"`
+	Message      string   `json:"message"`
+	JID          string   `json:"jid,omitempty"`
+	Name         string   `json:"name,omitempty"`
+	Topic        string   `json:"topic,omitempty"`
+	Created      string   `json:"created,omitempty"`
+	Creator      string   `json:"creator,omitempty"`
+	Participants []string `json:"participants,omitempty"`
+	Admins       []string `json:"admins,omitempty"`
+}
+
+// GroupNameRequest for updating group name
+type GroupNameRequest struct {
+	GroupJID string `json:"group_jid"`
+	Name     string `json:"name"`
+}
+
+// GroupTopicRequest for updating group description
+type GroupTopicRequest struct {
+	GroupJID string `json:"group_jid"`
+	Topic    string `json:"topic"`
+}
+
+// GroupPhotoRequest for updating group photo
+type GroupPhotoRequest struct {
+	GroupJID  string `json:"group_jid"`
+	PhotoPath string `json:"photo_path"`
+}
+
+// GroupInviteResponse contains invite link
+type GroupInviteResponse struct {
+	Success    bool   `json:"success"`
+	Message    string `json:"message"`
+	InviteLink string `json:"invite_link,omitempty"`
+	InviteCode string `json:"invite_code,omitempty"`
+}
+
+// JoinGroupRequest for joining via invite link
+type JoinGroupRequest struct {
+	InviteLink string `json:"invite_link"`
+}
+
+// ProfileResponse contains profile info
+type ProfileResponse struct {
+	Success     bool   `json:"success"`
+	Message     string `json:"message"`
+	JID         string `json:"jid,omitempty"`
+	Name        string `json:"name,omitempty"`
+	About       string `json:"about,omitempty"`
+	PhoneNumber string `json:"phone_number,omitempty"`
+}
+
+// UpdateProfileRequest for updating profile
+type UpdateProfileRequest struct {
+	Name  string `json:"name,omitempty"`
+	About string `json:"about,omitempty"`
+}
+
+// ProfilePhotoRequest for updating profile photo
+type ProfilePhotoRequest struct {
+	PhotoPath string `json:"photo_path"`
+}
+
+// PrivacySettingsResponse contains privacy settings
+type PrivacySettingsResponse struct {
+	Success          bool   `json:"success"`
+	Message          string `json:"message"`
+	LastSeen         string `json:"last_seen,omitempty"`
+	ProfilePhoto     string `json:"profile_photo,omitempty"`
+	About            string `json:"about,omitempty"`
+	ReadReceipts     string `json:"read_receipts,omitempty"`
+	Groups           string `json:"groups,omitempty"`
+	Status           string `json:"status,omitempty"`
+}
+
+// UpdatePrivacyRequest for updating privacy settings
+type UpdatePrivacyRequest struct {
+	Setting string `json:"setting"` // last_seen, profile_photo, about, read_receipts, groups, status
+	Value   string `json:"value"`   // all, contacts, contact_blacklist, none
+}
+
+// BlockContactRequest for blocking/unblocking contacts
+type BlockContactRequest struct {
+	JID string `json:"jid"`
+}
+
+// BlockedContactsResponse contains list of blocked contacts
+type BlockedContactsResponse struct {
+	Success  bool     `json:"success"`
+	Message  string   `json:"message"`
+	Contacts []string `json:"contacts,omitempty"`
+}
+
+// PresenceRequest for presence operations
+type PresenceRequest struct {
+	JID string `json:"jid"`
+}
+
+// TypingRequest for typing indicators
+type TypingRequest struct {
+	ChatJID string `json:"chat_jid"`
+	Typing  bool   `json:"typing"` // true for typing, false for stopped
+}
+
+// RecordingRequest for recording indicators
+type RecordingRequest struct {
+	ChatJID   string `json:"chat_jid"`
+	Recording bool   `json:"recording"`
+}
+
+// StatusTextRequest for posting text status
+type StatusTextRequest struct {
+	Text            string `json:"text"`
+	BackgroundColor string `json:"background_color,omitempty"` // Hex color
+	Font            int    `json:"font,omitempty"`             // Font style
+}
+
+// StatusMediaRequest for posting media status
+type StatusMediaRequest struct {
+	MediaPath string `json:"media_path"`
+	Caption   string `json:"caption,omitempty"`
+}
+
+// DeleteStatusRequest for deleting status
+type DeleteStatusRequest struct {
+	StatusID string `json:"status_id"`
+}
+
+// LocationRequest for sending location
+type LocationRequest struct {
+	ChatJID     string  `json:"chat_jid"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	Name        string  `json:"name,omitempty"`
+	Address     string  `json:"address,omitempty"`
+}
+
+// ContactCardRequest for sending contact cards
+type ContactCardRequest struct {
+	ChatJID     string `json:"chat_jid"`
+	ContactJID  string `json:"contact_jid"`
+	DisplayName string `json:"display_name"`
+	PhoneNumber string `json:"phone_number"`
+}
+
+// CheckPhoneRequest for checking if phone is on WhatsApp
+type CheckPhoneRequest struct {
+	PhoneNumbers []string `json:"phone_numbers"`
+}
+
+// CheckPhoneResponse contains registration status
+type CheckPhoneResponse struct {
+	Success bool              `json:"success"`
+	Message string            `json:"message"`
+	Results map[string]bool   `json:"results,omitempty"` // phone -> is_registered
+	JIDs    map[string]string `json:"jids,omitempty"`    // phone -> jid
+}
+
+// ContactInfoRequest for getting contact info
+type ContactInfoRequest struct {
+	JID string `json:"jid"`
+}
+
+// ContactInfoResponse contains contact details
+type ContactInfoResponse struct {
+	Success     bool   `json:"success"`
+	Message     string `json:"message"`
+	JID         string `json:"jid,omitempty"`
+	Name        string `json:"name,omitempty"`
+	FullName    string `json:"full_name,omitempty"`
+	PushName    string `json:"push_name,omitempty"`
+	BusinessName string `json:"business_name,omitempty"`
+}
+
+// MarkReadRequest for marking messages as read
+type MarkReadRequest struct {
+	ChatJID    string   `json:"chat_jid"`
+	MessageIDs []string `json:"message_ids"`
+	Sender     string   `json:"sender"`
+}
+
 // Function to send a WhatsApp message
 func sendWhatsAppMessage(client *whatsmeow.Client, recipient string, message string, mediaPath string) (bool, string) {
 	if !client.IsConnected() {
@@ -675,6 +953,972 @@ func extractDirectPathFromURL(url string) string {
 	return "/" + pathPart
 }
 
+// ============== HELPER FUNCTIONS ==============
+
+// parseJID parses a JID string, handling phone numbers and full JIDs
+func parseJID(recipient string) (types.JID, error) {
+	if strings.Contains(recipient, "@") {
+		return types.ParseJID(recipient)
+	}
+	return types.JID{
+		User:   recipient,
+		Server: "s.whatsapp.net",
+	}, nil
+}
+
+// ============== MESSAGE FEATURE HANDLERS ==============
+
+// handleReactToMessage sends a reaction to a message
+func handleReactToMessage(client *whatsmeow.Client, chatJID, messageID, sender, emoji string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	senderJID, err := parseJID(sender)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid sender JID: %v", err)
+	}
+
+	// Create reaction message
+	reactionMsg := &waProto.Message{
+		ReactionMessage: &waProto.ReactionMessage{
+			Key: &waProto.MessageKey{
+				RemoteJID:   proto.String(chatJID),
+				FromMe:      proto.Bool(senderJID.User == client.Store.ID.User),
+				ID:          proto.String(messageID),
+				Participant: proto.String(senderJID.String()),
+			},
+			Text:              proto.String(emoji),
+			SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+		},
+	}
+
+	_, err = client.SendMessage(context.Background(), chat, reactionMsg)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to send reaction: %v", err)
+	}
+
+	if emoji == "" {
+		return true, "Reaction removed"
+	}
+	return true, fmt.Sprintf("Reacted with %s", emoji)
+}
+
+// handleReplyToMessage sends a reply to a specific message
+func handleReplyToMessage(client *whatsmeow.Client, chatJID, messageID, quotedSender, message, mediaPath string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	quotedSenderJID, err := parseJID(quotedSender)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid quoted sender JID: %v", err)
+	}
+
+	// Create context info for the reply
+	contextInfo := &waProto.ContextInfo{
+		StanzaID:      proto.String(messageID),
+		Participant:   proto.String(quotedSenderJID.String()),
+		QuotedMessage: &waProto.Message{Conversation: proto.String("")}, // Placeholder
+	}
+
+	var msg *waProto.Message
+	if mediaPath != "" {
+		// Handle media reply - similar to sendWhatsAppMessage but with context
+		mediaData, err := os.ReadFile(mediaPath)
+		if err != nil {
+			return false, fmt.Sprintf("Error reading media file: %v", err)
+		}
+
+		fileExt := strings.ToLower(filepath.Ext(mediaPath))
+		var mediaType whatsmeow.MediaType
+		var mimeType string
+
+		switch fileExt {
+		case ".jpg", ".jpeg":
+			mediaType = whatsmeow.MediaImage
+			mimeType = "image/jpeg"
+		case ".png":
+			mediaType = whatsmeow.MediaImage
+			mimeType = "image/png"
+		case ".mp4":
+			mediaType = whatsmeow.MediaVideo
+			mimeType = "video/mp4"
+		default:
+			mediaType = whatsmeow.MediaDocument
+			mimeType = "application/octet-stream"
+		}
+
+		resp, err := client.Upload(context.Background(), mediaData, mediaType)
+		if err != nil {
+			return false, fmt.Sprintf("Error uploading media: %v", err)
+		}
+
+		switch mediaType {
+		case whatsmeow.MediaImage:
+			msg = &waProto.Message{
+				ImageMessage: &waProto.ImageMessage{
+					Caption:       proto.String(message),
+					Mimetype:      proto.String(mimeType),
+					URL:           &resp.URL,
+					DirectPath:    &resp.DirectPath,
+					MediaKey:      resp.MediaKey,
+					FileEncSHA256: resp.FileEncSHA256,
+					FileSHA256:    resp.FileSHA256,
+					FileLength:    &resp.FileLength,
+					ContextInfo:   contextInfo,
+				},
+			}
+		default:
+			msg = &waProto.Message{
+				DocumentMessage: &waProto.DocumentMessage{
+					Caption:       proto.String(message),
+					Mimetype:      proto.String(mimeType),
+					URL:           &resp.URL,
+					DirectPath:    &resp.DirectPath,
+					MediaKey:      resp.MediaKey,
+					FileEncSHA256: resp.FileEncSHA256,
+					FileSHA256:    resp.FileSHA256,
+					FileLength:    &resp.FileLength,
+					ContextInfo:   contextInfo,
+				},
+			}
+		}
+	} else {
+		msg = &waProto.Message{
+			ExtendedTextMessage: &waProto.ExtendedTextMessage{
+				Text:        proto.String(message),
+				ContextInfo: contextInfo,
+			},
+		}
+	}
+
+	_, err = client.SendMessage(context.Background(), chat, msg)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to send reply: %v", err)
+	}
+
+	return true, "Reply sent"
+}
+
+// handleDeleteMessage deletes a message
+func handleDeleteMessage(client *whatsmeow.Client, chatJID, messageID, sender string, forAll bool) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	senderJID, err := parseJID(sender)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid sender JID: %v", err)
+	}
+
+	isFromMe := senderJID.User == client.Store.ID.User
+
+	if forAll {
+		// Delete for everyone - using revoke
+		msg := &waProto.Message{
+			ProtocolMessage: &waProto.ProtocolMessage{
+				Key: &waProto.MessageKey{
+					RemoteJID: proto.String(chatJID),
+					FromMe:    proto.Bool(isFromMe),
+					ID:        proto.String(messageID),
+				},
+				Type: waProto.ProtocolMessage_REVOKE.Enum(),
+			},
+		}
+
+		_, err = client.SendMessage(context.Background(), chat, msg)
+		if err != nil {
+			return false, fmt.Sprintf("Failed to delete message for everyone: %v", err)
+		}
+		return true, "Message deleted for everyone"
+	}
+
+	// Delete for me only - not directly supported, would need app state
+	return false, "Delete for me only is not yet implemented"
+}
+
+// handleEditMessage edits a sent message
+func handleEditMessage(client *whatsmeow.Client, chatJID, messageID, newText string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	msg := &waProto.Message{
+		ProtocolMessage: &waProto.ProtocolMessage{
+			Key: &waProto.MessageKey{
+				RemoteJID: proto.String(chatJID),
+				FromMe:    proto.Bool(true),
+				ID:        proto.String(messageID),
+			},
+			Type: waProto.ProtocolMessage_MESSAGE_EDIT.Enum(),
+			EditedMessage: &waProto.Message{
+				Conversation: proto.String(newText),
+			},
+		},
+	}
+
+	_, err = client.SendMessage(context.Background(), chat, msg)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to edit message: %v", err)
+	}
+
+	return true, "Message edited"
+}
+
+// ============== CHAT MANAGEMENT HANDLERS ==============
+
+// handleMarkRead marks messages as read
+func handleMarkRead(client *whatsmeow.Client, chatJID string, messageIDs []string, sender string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	senderJID, err := parseJID(sender)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid sender JID: %v", err)
+	}
+
+	ids := make([]types.MessageID, len(messageIDs))
+	for i, id := range messageIDs {
+		ids[i] = types.MessageID(id)
+	}
+
+	err = client.MarkRead(context.Background(), ids, time.Now(), chat, senderJID)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to mark as read: %v", err)
+	}
+
+	return true, "Marked as read"
+}
+
+// ============== GROUP MANAGEMENT HANDLERS ==============
+
+// handleCreateGroup creates a new group
+func handleCreateGroup(client *whatsmeow.Client, name string, participants []string) (bool, string, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp", ""
+	}
+
+	participantJIDs := make([]types.JID, len(participants))
+	for i, p := range participants {
+		jid, err := parseJID(p)
+		if err != nil {
+			return false, fmt.Sprintf("Invalid participant JID %s: %v", p, err), ""
+		}
+		participantJIDs[i] = jid
+	}
+
+	req := whatsmeow.ReqCreateGroup{
+		Name:         name,
+		Participants: participantJIDs,
+	}
+
+	groupInfo, err := client.CreateGroup(context.Background(), req)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to create group: %v", err), ""
+	}
+
+	return true, "Group created", groupInfo.JID.String()
+}
+
+// handleGetGroupInfo gets information about a group
+func handleGetGroupInfo(client *whatsmeow.Client, groupJID string) (*GroupInfoResponse, error) {
+	if !client.IsConnected() {
+		return nil, fmt.Errorf("not connected to WhatsApp")
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid group JID: %v", err)
+	}
+
+	info, err := client.GetGroupInfo(context.Background(), jid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group info: %v", err)
+	}
+
+	participants := make([]string, len(info.Participants))
+	admins := []string{}
+	for i, p := range info.Participants {
+		participants[i] = p.JID.String()
+		if p.IsAdmin || p.IsSuperAdmin {
+			admins = append(admins, p.JID.String())
+		}
+	}
+
+	return &GroupInfoResponse{
+		Success:      true,
+		Message:      "Group info retrieved",
+		JID:          info.JID.String(),
+		Name:         info.Name,
+		Topic:        info.Topic,
+		Created:      info.GroupCreated.Format(time.RFC3339),
+		Creator:      info.OwnerJID.String(),
+		Participants: participants,
+		Admins:       admins,
+	}, nil
+}
+
+// handleAddGroupMembers adds members to a group
+func handleAddGroupMembers(client *whatsmeow.Client, groupJID string, participants []string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err)
+	}
+
+	participantJIDs := make([]types.JID, len(participants))
+	for i, p := range participants {
+		pJID, err := parseJID(p)
+		if err != nil {
+			return false, fmt.Sprintf("Invalid participant JID %s: %v", p, err)
+		}
+		participantJIDs[i] = pJID
+	}
+
+	_, err = client.UpdateGroupParticipants(context.Background(), jid, participantJIDs, whatsmeow.ParticipantChangeAdd)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to add members: %v", err)
+	}
+
+	return true, "Members added"
+}
+
+// handleRemoveGroupMembers removes members from a group
+func handleRemoveGroupMembers(client *whatsmeow.Client, groupJID string, participants []string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err)
+	}
+
+	participantJIDs := make([]types.JID, len(participants))
+	for i, p := range participants {
+		pJID, err := parseJID(p)
+		if err != nil {
+			return false, fmt.Sprintf("Invalid participant JID %s: %v", p, err)
+		}
+		participantJIDs[i] = pJID
+	}
+
+	_, err = client.UpdateGroupParticipants(context.Background(), jid, participantJIDs, whatsmeow.ParticipantChangeRemove)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to remove members: %v", err)
+	}
+
+	return true, "Members removed"
+}
+
+// handlePromoteGroupAdmin promotes members to admin
+func handlePromoteGroupAdmin(client *whatsmeow.Client, groupJID string, participants []string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err)
+	}
+
+	participantJIDs := make([]types.JID, len(participants))
+	for i, p := range participants {
+		pJID, err := parseJID(p)
+		if err != nil {
+			return false, fmt.Sprintf("Invalid participant JID %s: %v", p, err)
+		}
+		participantJIDs[i] = pJID
+	}
+
+	_, err = client.UpdateGroupParticipants(context.Background(), jid, participantJIDs, whatsmeow.ParticipantChangePromote)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to promote to admin: %v", err)
+	}
+
+	return true, "Promoted to admin"
+}
+
+// handleDemoteGroupAdmin demotes admins to regular members
+func handleDemoteGroupAdmin(client *whatsmeow.Client, groupJID string, participants []string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err)
+	}
+
+	participantJIDs := make([]types.JID, len(participants))
+	for i, p := range participants {
+		pJID, err := parseJID(p)
+		if err != nil {
+			return false, fmt.Sprintf("Invalid participant JID %s: %v", p, err)
+		}
+		participantJIDs[i] = pJID
+	}
+
+	_, err = client.UpdateGroupParticipants(context.Background(), jid, participantJIDs, whatsmeow.ParticipantChangeDemote)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to demote admin: %v", err)
+	}
+
+	return true, "Demoted from admin"
+}
+
+// handleSetGroupName sets the group name
+func handleSetGroupName(client *whatsmeow.Client, groupJID, name string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err)
+	}
+
+	err = client.SetGroupName(context.Background(), jid, name)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to set group name: %v", err)
+	}
+
+	return true, "Group name updated"
+}
+
+// handleSetGroupTopic sets the group description/topic
+func handleSetGroupTopic(client *whatsmeow.Client, groupJID, topic string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err)
+	}
+
+	err = client.SetGroupTopic(context.Background(), jid, "", "", topic)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to set group topic: %v", err)
+	}
+
+	return true, "Group topic updated"
+}
+
+// handleSetGroupPhoto sets the group photo
+func handleSetGroupPhoto(client *whatsmeow.Client, groupJID, photoPath string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err)
+	}
+
+	photoData, err := os.ReadFile(photoPath)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to read photo: %v", err)
+	}
+
+	_, err = client.SetGroupPhoto(context.Background(), jid, photoData)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to set group photo: %v", err)
+	}
+
+	return true, "Group photo updated"
+}
+
+// handleGetGroupInviteLink gets the group invite link
+func handleGetGroupInviteLink(client *whatsmeow.Client, groupJID string, revoke bool) (bool, string, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp", ""
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err), ""
+	}
+
+	var link string
+	if revoke {
+		link, err = client.GetGroupInviteLink(context.Background(), jid, true)
+	} else {
+		link, err = client.GetGroupInviteLink(context.Background(), jid, false)
+	}
+
+	if err != nil {
+		return false, fmt.Sprintf("Failed to get invite link: %v", err), ""
+	}
+
+	return true, "Invite link retrieved", link
+}
+
+// handleJoinGroupWithLink joins a group using an invite link
+func handleJoinGroupWithLink(client *whatsmeow.Client, inviteLink string) (bool, string, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp", ""
+	}
+
+	// Extract invite code from link
+	inviteCode := inviteLink
+	if strings.Contains(inviteLink, "chat.whatsapp.com/") {
+		parts := strings.Split(inviteLink, "chat.whatsapp.com/")
+		if len(parts) > 1 {
+			inviteCode = parts[1]
+		}
+	}
+
+	groupJID, err := client.JoinGroupWithLink(context.Background(), inviteCode)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to join group: %v", err), ""
+	}
+
+	return true, "Joined group", groupJID.String()
+}
+
+// handleLeaveGroup leaves a group
+func handleLeaveGroup(client *whatsmeow.Client, groupJID string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := types.ParseJID(groupJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid group JID: %v", err)
+	}
+
+	err = client.LeaveGroup(context.Background(), jid)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to leave group: %v", err)
+	}
+
+	return true, "Left group"
+}
+
+// ============== PROFILE & PRIVACY HANDLERS ==============
+
+// handleGetProfile gets the current user's profile
+func handleGetProfile(client *whatsmeow.Client) (*ProfileResponse, error) {
+	if !client.IsConnected() {
+		return nil, fmt.Errorf("not connected to WhatsApp")
+	}
+
+	return &ProfileResponse{
+		Success:     true,
+		Message:     "Profile retrieved",
+		JID:         client.Store.ID.String(),
+		PhoneNumber: client.Store.ID.User,
+	}, nil
+}
+
+// handleSetProfilePhoto sets the profile photo
+func handleSetProfilePhoto(client *whatsmeow.Client, photoPath string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	photoData, err := os.ReadFile(photoPath)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to read photo: %v", err)
+	}
+
+	_, err = client.SetGroupPhoto(context.Background(), types.EmptyJID, photoData)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to set profile photo: %v", err)
+	}
+
+	return true, "Profile photo updated"
+}
+
+// handleGetPrivacySettings gets privacy settings
+func handleGetPrivacySettings(client *whatsmeow.Client) (*PrivacySettingsResponse, error) {
+	if !client.IsConnected() {
+		return nil, fmt.Errorf("not connected to WhatsApp")
+	}
+
+	settings := client.GetPrivacySettings(context.Background())
+
+	return &PrivacySettingsResponse{
+		Success:      true,
+		Message:      "Privacy settings retrieved",
+		LastSeen:     string(settings.LastSeen),
+		ProfilePhoto: string(settings.Profile),
+		About:        string(settings.Status),
+		ReadReceipts: string(settings.ReadReceipts),
+		Groups:       string(settings.GroupAdd),
+	}, nil
+}
+
+// handleBlockContact blocks a contact
+func handleBlockContact(client *whatsmeow.Client, jidStr string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := parseJID(jidStr)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid JID: %v", err)
+	}
+
+	_, err = client.UpdateBlocklist(context.Background(), jid, events.BlocklistChangeActionBlock)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to block contact: %v", err)
+	}
+
+	return true, "Contact blocked"
+}
+
+// handleUnblockContact unblocks a contact
+func handleUnblockContact(client *whatsmeow.Client, jidStr string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := parseJID(jidStr)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid JID: %v", err)
+	}
+
+	_, err = client.UpdateBlocklist(context.Background(), jid, events.BlocklistChangeActionUnblock)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to unblock contact: %v", err)
+	}
+
+	return true, "Contact unblocked"
+}
+
+// handleGetBlockedContacts gets the list of blocked contacts
+func handleGetBlockedContacts(client *whatsmeow.Client) (*BlockedContactsResponse, error) {
+	if !client.IsConnected() {
+		return nil, fmt.Errorf("not connected to WhatsApp")
+	}
+
+	blocklist, err := client.GetBlocklist(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get blocklist: %v", err)
+	}
+
+	contacts := make([]string, len(blocklist.JIDs))
+	for i, jid := range blocklist.JIDs {
+		contacts[i] = jid.String()
+	}
+
+	return &BlockedContactsResponse{
+		Success:  true,
+		Message:  "Blocklist retrieved",
+		Contacts: contacts,
+	}, nil
+}
+
+// ============== PRESENCE HANDLERS ==============
+
+// handleSubscribePresence subscribes to presence updates for a contact
+func handleSubscribePresence(client *whatsmeow.Client, jidStr string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	jid, err := parseJID(jidStr)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid JID: %v", err)
+	}
+
+	err = client.SubscribePresence(context.Background(), jid)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to subscribe to presence: %v", err)
+	}
+
+	return true, "Subscribed to presence"
+}
+
+// handleSendTyping sends typing indicator
+func handleSendTyping(client *whatsmeow.Client, chatJID string, typing bool) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	var presence types.ChatPresence
+	if typing {
+		presence = types.ChatPresenceComposing
+	} else {
+		presence = types.ChatPresencePaused
+	}
+
+	err = client.SendChatPresence(context.Background(), chat, presence, types.ChatPresenceMediaText)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to send typing indicator: %v", err)
+	}
+
+	return true, "Typing indicator sent"
+}
+
+// handleSendRecording sends recording indicator
+func handleSendRecording(client *whatsmeow.Client, chatJID string, recording bool) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	var presence types.ChatPresence
+	if recording {
+		presence = types.ChatPresenceComposing
+	} else {
+		presence = types.ChatPresencePaused
+	}
+
+	err = client.SendChatPresence(context.Background(), chat, presence, types.ChatPresenceMediaAudio)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to send recording indicator: %v", err)
+	}
+
+	return true, "Recording indicator sent"
+}
+
+// handleSetPresence sets online/offline presence
+func handleSetPresence(client *whatsmeow.Client, available bool) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	var presence types.Presence
+	if available {
+		presence = types.PresenceAvailable
+	} else {
+		presence = types.PresenceUnavailable
+	}
+
+	err := client.SendPresence(context.Background(), presence)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to set presence: %v", err)
+	}
+
+	return true, "Presence updated"
+}
+
+// ============== STATUS/STORIES HANDLERS ==============
+
+// handlePostTextStatus posts a text status
+func handlePostTextStatus(client *whatsmeow.Client, text string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	statusJID := types.JID{
+		User:   "status",
+		Server: "broadcast",
+	}
+
+	msg := &waProto.Message{
+		ExtendedTextMessage: &waProto.ExtendedTextMessage{
+			Text: proto.String(text),
+		},
+	}
+
+	_, err := client.SendMessage(context.Background(), statusJID, msg)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to post status: %v", err)
+	}
+
+	return true, "Status posted"
+}
+
+// handlePostImageStatus posts an image status
+func handlePostImageStatus(client *whatsmeow.Client, imagePath, caption string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	imageData, err := os.ReadFile(imagePath)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to read image: %v", err)
+	}
+
+	resp, err := client.Upload(context.Background(), imageData, whatsmeow.MediaImage)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to upload image: %v", err)
+	}
+
+	statusJID := types.JID{
+		User:   "status",
+		Server: "broadcast",
+	}
+
+	msg := &waProto.Message{
+		ImageMessage: &waProto.ImageMessage{
+			Caption:       proto.String(caption),
+			Mimetype:      proto.String("image/jpeg"),
+			URL:           &resp.URL,
+			DirectPath:    &resp.DirectPath,
+			MediaKey:      resp.MediaKey,
+			FileEncSHA256: resp.FileEncSHA256,
+			FileSHA256:    resp.FileSHA256,
+			FileLength:    &resp.FileLength,
+		},
+	}
+
+	_, err = client.SendMessage(context.Background(), statusJID, msg)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to post status: %v", err)
+	}
+
+	return true, "Image status posted"
+}
+
+// ============== UTILITY HANDLERS ==============
+
+// handleSendLocation sends a location message
+func handleSendLocation(client *whatsmeow.Client, chatJID string, lat, lng float64, name, address string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	msg := &waProto.Message{
+		LocationMessage: &waProto.LocationMessage{
+			DegreesLatitude:  proto.Float64(lat),
+			DegreesLongitude: proto.Float64(lng),
+			Name:             proto.String(name),
+			Address:          proto.String(address),
+		},
+	}
+
+	_, err = client.SendMessage(context.Background(), chat, msg)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to send location: %v", err)
+	}
+
+	return true, "Location sent"
+}
+
+// handleSendContact sends a contact card
+func handleSendContact(client *whatsmeow.Client, chatJID, displayName, phoneNumber string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	// Create vCard format
+	vcard := fmt.Sprintf("BEGIN:VCARD\nVERSION:3.0\nFN:%s\nTEL;type=CELL;type=VOICE;waid=%s:+%s\nEND:VCARD",
+		displayName, phoneNumber, phoneNumber)
+
+	msg := &waProto.Message{
+		ContactMessage: &waProto.ContactMessage{
+			DisplayName: proto.String(displayName),
+			Vcard:       proto.String(vcard),
+		},
+	}
+
+	_, err = client.SendMessage(context.Background(), chat, msg)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to send contact: %v", err)
+	}
+
+	return true, "Contact sent"
+}
+
+// handleCheckPhoneNumbers checks if phone numbers are registered on WhatsApp
+func handleCheckPhoneNumbers(client *whatsmeow.Client, phoneNumbers []string) (*CheckPhoneResponse, error) {
+	if !client.IsConnected() {
+		return nil, fmt.Errorf("not connected to WhatsApp")
+	}
+
+	results, err := client.IsOnWhatsApp(context.Background(), phoneNumbers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check phone numbers: %v", err)
+	}
+
+	registered := make(map[string]bool)
+	jids := make(map[string]string)
+
+	for _, result := range results {
+		registered[result.Query] = result.IsIn
+		if result.IsIn {
+			jids[result.Query] = result.JID.String()
+		}
+	}
+
+	return &CheckPhoneResponse{
+		Success: true,
+		Message: "Phone numbers checked",
+		Results: registered,
+		JIDs:    jids,
+	}, nil
+}
+
+// handleGetContactInfo gets information about a contact
+func handleGetContactInfo(client *whatsmeow.Client, jidStr string) (*ContactInfoResponse, error) {
+	if !client.IsConnected() {
+		return nil, fmt.Errorf("not connected to WhatsApp")
+	}
+
+	jid, err := parseJID(jidStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid JID: %v", err)
+	}
+
+	contact, err := client.Store.Contacts.GetContact(context.Background(), jid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contact: %v", err)
+	}
+
+	return &ContactInfoResponse{
+		Success:      true,
+		Message:      "Contact info retrieved",
+		JID:          jid.String(),
+		FullName:     contact.FullName,
+		PushName:     contact.PushName,
+		BusinessName: contact.BusinessName,
+	}, nil
+}
+
 // Start a REST API server to expose the WhatsApp client functionality
 func startRESTServer(client *whatsmeow.Client, messageStore *MessageStore, port int) {
 	// Handler for sending messages
@@ -772,6 +2016,737 @@ func startRESTServer(client *whatsmeow.Client, messageStore *MessageStore, port 
 			Filename: filename,
 			Path:     path,
 		})
+	})
+
+	// ============== MESSAGE FEATURE ROUTES ==============
+
+	// React to message
+	http.HandleFunc("/api/message/react", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ReactRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleReactToMessage(client, req.ChatJID, req.MessageID, req.Sender, req.Emoji)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Reply to message
+	http.HandleFunc("/api/message/reply", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ReplyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleReplyToMessage(client, req.ChatJID, req.MessageID, req.QuotedSender, req.Message, req.MediaPath)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Delete message
+	http.HandleFunc("/api/message/delete", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req DeleteMessageRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleDeleteMessage(client, req.ChatJID, req.MessageID, req.Sender, req.ForAll)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Edit message
+	http.HandleFunc("/api/message/edit", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req EditMessageRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleEditMessage(client, req.ChatJID, req.MessageID, req.NewText)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// ============== CHAT MANAGEMENT ROUTES ==============
+
+	// Mark messages as read
+	http.HandleFunc("/api/chat/read", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req MarkReadRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleMarkRead(client, req.ChatJID, req.MessageIDs, req.Sender)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// ============== GROUP MANAGEMENT ROUTES ==============
+
+	// Create group
+	http.HandleFunc("/api/group/create", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req CreateGroupRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message, groupJID := handleCreateGroup(client, req.Name, req.Participants)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(CreateGroupResponse{Success: success, Message: message, GroupJID: groupJID})
+	})
+
+	// Get group info
+	http.HandleFunc("/api/group/info", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupInfoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		resp, err := handleGetGroupInfo(client, req.GroupJID)
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(GroupInfoResponse{Success: false, Message: err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	// Add group members
+	http.HandleFunc("/api/group/members/add", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupMembersRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleAddGroupMembers(client, req.GroupJID, req.Participants)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Remove group members
+	http.HandleFunc("/api/group/members/remove", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupMembersRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleRemoveGroupMembers(client, req.GroupJID, req.Participants)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Promote to admin
+	http.HandleFunc("/api/group/admin/promote", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupAdminRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handlePromoteGroupAdmin(client, req.GroupJID, req.Participants)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Demote admin
+	http.HandleFunc("/api/group/admin/demote", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupAdminRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleDemoteGroupAdmin(client, req.GroupJID, req.Participants)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Set group name
+	http.HandleFunc("/api/group/name", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupNameRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSetGroupName(client, req.GroupJID, req.Name)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Set group topic/description
+	http.HandleFunc("/api/group/topic", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupTopicRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSetGroupTopic(client, req.GroupJID, req.Topic)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Set group photo
+	http.HandleFunc("/api/group/photo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupPhotoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSetGroupPhoto(client, req.GroupJID, req.PhotoPath)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Get group invite link
+	http.HandleFunc("/api/group/invite", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupInfoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message, link := handleGetGroupInviteLink(client, req.GroupJID, false)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GroupInviteResponse{Success: success, Message: message, InviteLink: link})
+	})
+
+	// Revoke group invite link
+	http.HandleFunc("/api/group/invite/revoke", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupInfoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message, link := handleGetGroupInviteLink(client, req.GroupJID, true)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GroupInviteResponse{Success: success, Message: message, InviteLink: link})
+	})
+
+	// Join group via invite
+	http.HandleFunc("/api/group/join", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req JoinGroupRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message, groupJID := handleJoinGroupWithLink(client, req.InviteLink)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(CreateGroupResponse{Success: success, Message: message, GroupJID: groupJID})
+	})
+
+	// Leave group
+	http.HandleFunc("/api/group/leave", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req GroupInfoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleLeaveGroup(client, req.GroupJID)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// ============== PROFILE & PRIVACY ROUTES ==============
+
+	// Get profile
+	http.HandleFunc("/api/profile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		resp, err := handleGetProfile(client)
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(ProfileResponse{Success: false, Message: err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	// Set profile photo
+	http.HandleFunc("/api/profile/photo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ProfilePhotoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSetProfilePhoto(client, req.PhotoPath)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Get privacy settings
+	http.HandleFunc("/api/privacy", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		resp, err := handleGetPrivacySettings(client)
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(PrivacySettingsResponse{Success: false, Message: err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	// Block contact
+	http.HandleFunc("/api/contact/block", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req BlockContactRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleBlockContact(client, req.JID)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Unblock contact
+	http.HandleFunc("/api/contact/unblock", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req BlockContactRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleUnblockContact(client, req.JID)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Get blocked contacts
+	http.HandleFunc("/api/contact/blocked", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		resp, err := handleGetBlockedContacts(client)
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(BlockedContactsResponse{Success: false, Message: err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	// ============== PRESENCE ROUTES ==============
+
+	// Subscribe to presence
+	http.HandleFunc("/api/presence/subscribe", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req PresenceRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSubscribePresence(client, req.JID)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Send typing indicator
+	http.HandleFunc("/api/presence/typing", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req TypingRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSendTyping(client, req.ChatJID, req.Typing)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Send recording indicator
+	http.HandleFunc("/api/presence/recording", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req RecordingRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSendRecording(client, req.ChatJID, req.Recording)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Set online presence
+	http.HandleFunc("/api/presence/online", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		success, message := handleSetPresence(client, true)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Set offline presence
+	http.HandleFunc("/api/presence/offline", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		success, message := handleSetPresence(client, false)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// ============== STATUS/STORIES ROUTES ==============
+
+	// Post text status
+	http.HandleFunc("/api/status/text", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req StatusTextRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handlePostTextStatus(client, req.Text)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Post image status
+	http.HandleFunc("/api/status/image", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req StatusMediaRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handlePostImageStatus(client, req.MediaPath, req.Caption)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// ============== UTILITY ROUTES ==============
+
+	// Send location
+	http.HandleFunc("/api/message/location", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req LocationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSendLocation(client, req.ChatJID, req.Latitude, req.Longitude, req.Name, req.Address)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Send contact card
+	http.HandleFunc("/api/message/contact", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ContactCardRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleSendContact(client, req.ChatJID, req.DisplayName, req.PhoneNumber)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Check phone numbers on WhatsApp
+	http.HandleFunc("/api/contact/check", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req CheckPhoneRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		resp, err := handleCheckPhoneNumbers(client, req.PhoneNumbers)
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(CheckPhoneResponse{Success: false, Message: err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	// Get contact info
+	http.HandleFunc("/api/contact/info", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ContactInfoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		resp, err := handleGetContactInfo(client, req.JID)
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(ContactInfoResponse{Success: false, Message: err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(resp)
 	})
 
 	// Start the server
