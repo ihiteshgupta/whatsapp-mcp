@@ -1218,6 +1218,44 @@ func handleMarkRead(client *whatsmeow.Client, chatJID string, messageIDs []strin
 	return true, "Marked as read"
 }
 
+// syncAndSendAppState syncs the app state before sending a patch to avoid conflicts
+func syncAndSendAppState(client *whatsmeow.Client, patch appstate.PatchInfo) error {
+	ctx := context.Background()
+
+	// First, try to send without full sync
+	err := client.SendAppState(ctx, patch)
+	if err == nil {
+		return nil
+	}
+
+	// Check if this is a missing keys error
+	if strings.Contains(err.Error(), "no app state keys") {
+		return fmt.Errorf("app state keys not synced yet - open WhatsApp on your phone to sync keys, then retry")
+	}
+
+	// If we get a conflict error, do a full sync and retry
+	if strings.Contains(err.Error(), "conflict") || strings.Contains(err.Error(), "LTHash") {
+		// Full sync the app state type
+		syncErr := client.FetchAppState(ctx, patch.Type, true, false)
+		if syncErr != nil {
+			// Check if sync failed due to missing keys
+			if strings.Contains(syncErr.Error(), "no app state keys") {
+				return fmt.Errorf("app state keys not synced yet - open WhatsApp on your phone to sync keys, then retry")
+			}
+			return fmt.Errorf("sync failed: %v (original error: %v)", syncErr, err)
+		}
+
+		// Retry sending after sync
+		retryErr := client.SendAppState(ctx, patch)
+		if retryErr != nil && strings.Contains(retryErr.Error(), "no app state keys") {
+			return fmt.Errorf("app state keys not synced yet - open WhatsApp on your phone to sync keys, then retry")
+		}
+		return retryErr
+	}
+
+	return err
+}
+
 // handlePinChat pins or unpins a chat using appstate
 func handlePinChat(client *whatsmeow.Client, chatJID string, pin bool) (bool, string) {
 	if !client.IsConnected() {
@@ -1230,7 +1268,7 @@ func handlePinChat(client *whatsmeow.Client, chatJID string, pin bool) (bool, st
 	}
 
 	patch := appstate.BuildPin(chat, pin)
-	err = client.SendAppState(context.Background(), patch)
+	err = syncAndSendAppState(client, patch)
 	if err != nil {
 		return false, fmt.Sprintf("Failed to %s chat: %v", map[bool]string{true: "pin", false: "unpin"}[pin], err)
 	}
@@ -1254,7 +1292,7 @@ func handleArchiveChat(client *whatsmeow.Client, chatJID string, archive bool) (
 
 	// Archive with current timestamp, no specific message key
 	patch := appstate.BuildArchive(chat, archive, time.Now(), nil)
-	err = client.SendAppState(context.Background(), patch)
+	err = syncAndSendAppState(client, patch)
 	if err != nil {
 		return false, fmt.Sprintf("Failed to %s chat: %v", map[bool]string{true: "archive", false: "unarchive"}[archive], err)
 	}
@@ -1282,7 +1320,7 @@ func handleMuteChat(client *whatsmeow.Client, chatJID string, mute bool, duratio
 	} // 0 means forever
 
 	patch := appstate.BuildMute(chat, mute, duration)
-	err = client.SendAppState(context.Background(), patch)
+	err = syncAndSendAppState(client, patch)
 	if err != nil {
 		return false, fmt.Sprintf("Failed to %s chat: %v", map[bool]string{true: "mute", false: "unmute"}[mute], err)
 	}
@@ -1314,7 +1352,7 @@ func handleStarMessage(client *whatsmeow.Client, chatJID, messageID, sender stri
 
 	fromMe := senderJID.User == client.Store.ID.User
 	patch := appstate.BuildStar(chat, senderJID, types.MessageID(messageID), fromMe, star)
-	err = client.SendAppState(context.Background(), patch)
+	err = syncAndSendAppState(client, patch)
 	if err != nil {
 		return false, fmt.Sprintf("Failed to %s message: %v", map[bool]string{true: "star", false: "unstar"}[star], err)
 	}
@@ -1371,7 +1409,7 @@ func handleLabelChat(client *whatsmeow.Client, chatJID, labelID string, labeled 
 	}
 
 	patch := appstate.BuildLabelChat(chat, labelID, labeled)
-	err = client.SendAppState(context.Background(), patch)
+	err = syncAndSendAppState(client, patch)
 	if err != nil {
 		return false, fmt.Sprintf("Failed to %s label: %v", map[bool]string{true: "add", false: "remove"}[labeled], err)
 	}
@@ -1394,7 +1432,7 @@ func handleDeleteChat(client *whatsmeow.Client, chatJID string) (bool, string) {
 	}
 
 	patch := appstate.BuildDeleteChat(chat, time.Now(), nil)
-	err = client.SendAppState(context.Background(), patch)
+	err = syncAndSendAppState(client, patch)
 	if err != nil {
 		return false, fmt.Sprintf("Failed to delete chat: %v", err)
 	}
