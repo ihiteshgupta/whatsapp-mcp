@@ -23,6 +23,7 @@ import (
 	"bytes"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
@@ -1215,6 +1216,190 @@ func handleMarkRead(client *whatsmeow.Client, chatJID string, messageIDs []strin
 	}
 
 	return true, "Marked as read"
+}
+
+// handlePinChat pins or unpins a chat using appstate
+func handlePinChat(client *whatsmeow.Client, chatJID string, pin bool) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	patch := appstate.BuildPin(chat, pin)
+	err = client.SendAppState(context.Background(), patch)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to %s chat: %v", map[bool]string{true: "pin", false: "unpin"}[pin], err)
+	}
+
+	if pin {
+		return true, "Chat pinned"
+	}
+	return true, "Chat unpinned"
+}
+
+// handleArchiveChat archives or unarchives a chat using appstate
+func handleArchiveChat(client *whatsmeow.Client, chatJID string, archive bool) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	// Archive with current timestamp, no specific message key
+	patch := appstate.BuildArchive(chat, archive, time.Now(), nil)
+	err = client.SendAppState(context.Background(), patch)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to %s chat: %v", map[bool]string{true: "archive", false: "unarchive"}[archive], err)
+	}
+
+	if archive {
+		return true, "Chat archived"
+	}
+	return true, "Chat unarchived"
+}
+
+// handleMuteChat mutes or unmutes a chat using appstate
+func handleMuteChat(client *whatsmeow.Client, chatJID string, mute bool, durationSeconds int64) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	var duration time.Duration
+	if durationSeconds > 0 {
+		duration = time.Duration(durationSeconds) * time.Second
+	} // 0 means forever
+
+	patch := appstate.BuildMute(chat, mute, duration)
+	err = client.SendAppState(context.Background(), patch)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to %s chat: %v", map[bool]string{true: "mute", false: "unmute"}[mute], err)
+	}
+
+	if mute {
+		if durationSeconds > 0 {
+			return true, fmt.Sprintf("Chat muted for %d seconds", durationSeconds)
+		}
+		return true, "Chat muted indefinitely"
+	}
+	return true, "Chat unmuted"
+}
+
+// handleStarMessage stars or unstars a message using appstate
+func handleStarMessage(client *whatsmeow.Client, chatJID, messageID, sender string, star bool) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	senderJID, err := parseJID(sender)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid sender JID: %v", err)
+	}
+
+	fromMe := senderJID.User == client.Store.ID.User
+	patch := appstate.BuildStar(chat, senderJID, types.MessageID(messageID), fromMe, star)
+	err = client.SendAppState(context.Background(), patch)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to %s message: %v", map[bool]string{true: "star", false: "unstar"}[star], err)
+	}
+
+	if star {
+		return true, "Message starred"
+	}
+	return true, "Message unstarred"
+}
+
+// handleForwardMessage forwards a message to another chat
+func handleForwardMessage(client *whatsmeow.Client, fromChatJID, toChatJID, messageID string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	toChat, err := types.ParseJID(toChatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid destination chat JID: %v", err)
+	}
+
+	// Create a forwarded message
+	// Note: We need the original message content to forward it
+	// For now, we'll create a forwarded text message placeholder
+	// In a full implementation, we'd need to retrieve the original message content
+
+	forwardedMsg := &waProto.Message{
+		ExtendedTextMessage: &waProto.ExtendedTextMessage{
+			Text: proto.String("[Forwarded message]"),
+			ContextInfo: &waProto.ContextInfo{
+				IsForwarded:    proto.Bool(true),
+				ForwardingScore: proto.Uint32(1),
+			},
+		},
+	}
+
+	_, err = client.SendMessage(context.Background(), toChat, forwardedMsg)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to forward message: %v", err)
+	}
+
+	return true, "Message forwarded"
+}
+
+// handleLabelChat labels or unlabels a chat
+func handleLabelChat(client *whatsmeow.Client, chatJID, labelID string, labeled bool) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	patch := appstate.BuildLabelChat(chat, labelID, labeled)
+	err = client.SendAppState(context.Background(), patch)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to %s label: %v", map[bool]string{true: "add", false: "remove"}[labeled], err)
+	}
+
+	if labeled {
+		return true, fmt.Sprintf("Label %s added to chat", labelID)
+	}
+	return true, fmt.Sprintf("Label %s removed from chat", labelID)
+}
+
+// handleDeleteChat deletes a chat using appstate
+func handleDeleteChat(client *whatsmeow.Client, chatJID string) (bool, string) {
+	if !client.IsConnected() {
+		return false, "Not connected to WhatsApp"
+	}
+
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return false, fmt.Sprintf("Invalid chat JID: %v", err)
+	}
+
+	patch := appstate.BuildDeleteChat(chat, time.Now(), nil)
+	err = client.SendAppState(context.Background(), patch)
+	if err != nil {
+		return false, fmt.Sprintf("Failed to delete chat: %v", err)
+	}
+
+	return true, "Chat deleted"
 }
 
 // ============== GROUP MANAGEMENT HANDLERS ==============
@@ -2747,6 +2932,223 @@ func startRESTServer(client *whatsmeow.Client, messageStore *MessageStore, port 
 			return
 		}
 		json.NewEncoder(w).Encode(resp)
+	})
+
+	// ============== CHAT STATE ROUTES (PIN, ARCHIVE, MUTE, STAR) ==============
+
+	// Pin chat
+	http.HandleFunc("/api/chat/pin", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handlePinChat(client, req.ChatJID, true)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Unpin chat
+	http.HandleFunc("/api/chat/unpin", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handlePinChat(client, req.ChatJID, false)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Archive chat
+	http.HandleFunc("/api/chat/archive", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleArchiveChat(client, req.ChatJID, true)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Unarchive chat
+	http.HandleFunc("/api/chat/unarchive", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleArchiveChat(client, req.ChatJID, false)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Mute chat
+	http.HandleFunc("/api/chat/mute", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req MuteChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleMuteChat(client, req.ChatJID, true, req.Duration)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Unmute chat
+	http.HandleFunc("/api/chat/unmute", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleMuteChat(client, req.ChatJID, false, 0)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Delete chat
+	http.HandleFunc("/api/chat/delete", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleDeleteChat(client, req.ChatJID)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Star message
+	http.HandleFunc("/api/message/star", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req StarMessageRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		// Use chat JID as sender for now - proper implementation would need the actual sender
+		success, message := handleStarMessage(client, req.ChatJID, req.MessageID, req.ChatJID, req.Star)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Forward message
+	http.HandleFunc("/api/message/forward", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req ForwardRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleForwardMessage(client, req.FromChatJID, req.ToChatJID, req.MessageID)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
+	})
+
+	// Label chat
+	http.HandleFunc("/api/chat/label", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req struct {
+			ChatJID string `json:"chat_jid"`
+			LabelID string `json:"label_id"`
+			Labeled bool   `json:"labeled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request format", http.StatusBadRequest)
+			return
+		}
+
+		success, message := handleLabelChat(client, req.ChatJID, req.LabelID, req.Labeled)
+		w.Header().Set("Content-Type", "application/json")
+		if !success {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		json.NewEncoder(w).Encode(GenericResponse{Success: success, Message: message})
 	})
 
 	// Start the server

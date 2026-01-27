@@ -56,6 +56,18 @@ from whatsapp import (
     send_contact_card as whatsapp_send_contact_card,
     check_phone_numbers as whatsapp_check_phone_numbers,
     get_contact_info as whatsapp_get_contact_info,
+    # Chat state management (pin, archive, mute, star)
+    pin_chat as whatsapp_pin_chat,
+    unpin_chat as whatsapp_unpin_chat,
+    archive_chat as whatsapp_archive_chat,
+    unarchive_chat as whatsapp_unarchive_chat,
+    mute_chat as whatsapp_mute_chat,
+    unmute_chat as whatsapp_unmute_chat,
+    delete_chat as whatsapp_delete_chat,
+    star_message as whatsapp_star_message,
+    unstar_message as whatsapp_unstar_message,
+    forward_message as whatsapp_forward_message,
+    label_chat as whatsapp_label_chat,
 )
 
 # Initialize FastMCP server
@@ -776,6 +788,169 @@ def get_contact_info_by_jid(jid: str) -> Dict[str, Any]:
         A dictionary containing contact info (name, full_name, push_name, business_name, etc.)
     """
     return whatsapp_get_contact_info(jid)
+
+
+# ============== CHAT STATE TOOLS (PIN, ARCHIVE, MUTE, STAR) ==============
+
+@mcp.tool()
+def pin_chat(chat_jid: str) -> Dict[str, Any]:
+    """Pin a WhatsApp chat to the top of the chat list.
+
+    Args:
+        chat_jid: The JID of the chat to pin
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_pin_chat(chat_jid)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def unpin_chat(chat_jid: str) -> Dict[str, Any]:
+    """Unpin a WhatsApp chat.
+
+    Args:
+        chat_jid: The JID of the chat to unpin
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_unpin_chat(chat_jid)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def archive_chat(chat_jid: str) -> Dict[str, Any]:
+    """Archive a WhatsApp chat. Archiving also unpins the chat.
+
+    Args:
+        chat_jid: The JID of the chat to archive
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_archive_chat(chat_jid)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def unarchive_chat(chat_jid: str) -> Dict[str, Any]:
+    """Unarchive a WhatsApp chat.
+
+    Args:
+        chat_jid: The JID of the chat to unarchive
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_unarchive_chat(chat_jid)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def mute_chat(chat_jid: str, duration_seconds: int = 0) -> Dict[str, Any]:
+    """Mute a WhatsApp chat.
+
+    Args:
+        chat_jid: The JID of the chat to mute
+        duration_seconds: Duration to mute in seconds. 0 means indefinite.
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_mute_chat(chat_jid, duration_seconds)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def unmute_chat(chat_jid: str) -> Dict[str, Any]:
+    """Unmute a WhatsApp chat.
+
+    Args:
+        chat_jid: The JID of the chat to unmute
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_unmute_chat(chat_jid)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def delete_chat(chat_jid: str) -> Dict[str, Any]:
+    """Delete a WhatsApp chat.
+
+    Args:
+        chat_jid: The JID of the chat to delete
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_delete_chat(chat_jid)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def star_message(chat_jid: str, message_id: str) -> Dict[str, Any]:
+    """Star a WhatsApp message.
+
+    Args:
+        chat_jid: The JID of the chat containing the message
+        message_id: The ID of the message to star
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_star_message(chat_jid, message_id, star=True)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def unstar_message(chat_jid: str, message_id: str) -> Dict[str, Any]:
+    """Unstar a WhatsApp message.
+
+    Args:
+        chat_jid: The JID of the chat containing the message
+        message_id: The ID of the message to unstar
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_unstar_message(chat_jid, message_id)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def forward_message(from_chat_jid: str, to_chat_jid: str, message_id: str) -> Dict[str, Any]:
+    """Forward a WhatsApp message to another chat.
+
+    Args:
+        from_chat_jid: The JID of the chat containing the original message
+        to_chat_jid: The JID of the chat to forward the message to
+        message_id: The ID of the message to forward
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_forward_message(from_chat_jid, to_chat_jid, message_id)
+    return {"success": success, "message": message}
+
+
+@mcp.tool()
+def label_chat(chat_jid: str, label_id: str, labeled: bool = True) -> Dict[str, Any]:
+    """Label or unlabel a WhatsApp chat.
+
+    Args:
+        chat_jid: The JID of the chat to label
+        label_id: The ID of the label to apply
+        labeled: True to add the label, False to remove it
+
+    Returns:
+        A dictionary with success status and message
+    """
+    success, message = whatsapp_label_chat(chat_jid, label_id, labeled)
+    return {"success": success, "message": message}
 
 
 if __name__ == "__main__":

@@ -1257,3 +1257,134 @@ def get_contact_info(jid: str) -> dict:
         return response.json()
     except Exception as e:
         return {"success": False, "message": f"Error: {str(e)}"}
+
+
+# ============== CHAT STATE FUNCTIONS (PIN, ARCHIVE, MUTE, STAR) ==============
+
+def pin_chat(chat_jid: str) -> Tuple[bool, str]:
+    """Pin a chat to the top."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/pin"
+        payload = {"chat_jid": chat_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def unpin_chat(chat_jid: str) -> Tuple[bool, str]:
+    """Unpin a chat."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/unpin"
+        payload = {"chat_jid": chat_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def archive_chat(chat_jid: str) -> Tuple[bool, str]:
+    """Archive a chat."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/archive"
+        payload = {"chat_jid": chat_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def unarchive_chat(chat_jid: str) -> Tuple[bool, str]:
+    """Unarchive a chat."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/unarchive"
+        payload = {"chat_jid": chat_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def mute_chat(chat_jid: str, duration_seconds: int = 0) -> Tuple[bool, str]:
+    """Mute a chat. Duration in seconds, 0 for indefinite."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/mute"
+        payload = {"chat_jid": chat_jid, "duration": duration_seconds}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def unmute_chat(chat_jid: str) -> Tuple[bool, str]:
+    """Unmute a chat."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/unmute"
+        payload = {"chat_jid": chat_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def delete_chat(chat_jid: str) -> Tuple[bool, str]:
+    """Delete a chat."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/delete"
+        payload = {"chat_jid": chat_jid}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def star_message(chat_jid: str, message_id: str, star: bool = True) -> Tuple[bool, str]:
+    """Star or unstar a message."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/message/star"
+        payload = {"chat_jid": chat_jid, "message_id": message_id, "star": star}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def unstar_message(chat_jid: str, message_id: str) -> Tuple[bool, str]:
+    """Unstar a message."""
+    return star_message(chat_jid, message_id, star=False)
+
+
+def forward_message(from_chat_jid: str, to_chat_jid: str, message_id: str) -> Tuple[bool, str]:
+    """Forward a message to another chat."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/message/forward"
+        payload = {
+            "from_chat_jid": from_chat_jid,
+            "to_chat_jid": to_chat_jid,
+            "message_id": message_id
+        }
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def label_chat(chat_jid: str, label_id: str, labeled: bool = True) -> Tuple[bool, str]:
+    """Label or unlabel a chat."""
+    try:
+        url = f"{WHATSAPP_API_BASE_URL}/chat/label"
+        payload = {"chat_jid": chat_jid, "label_id": label_id, "labeled": labeled}
+        response = requests.post(url, json=payload)
+        result = response.json()
+        return result.get("success", False), result.get("message", "Unknown error")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
