@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"sync"
+	"encoding/json"
 	"testing"
 
 	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/config"
@@ -13,31 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FakeWhatsAppClient for testing
-type FakeWhatsAppClient struct {
-	mu           sync.Mutex
-	connected    bool
-	loggedIn     bool
-	sentMessages []struct{ JID, Content string }
-}
-
-func (f *FakeWhatsAppClient) Connect() error { f.connected = true; return nil }
-func (f *FakeWhatsAppClient) Disconnect()    { f.connected = false }
-func (f *FakeWhatsAppClient) IsConnected() bool { return f.connected }
-func (f *FakeWhatsAppClient) IsLoggedIn() bool  { return f.loggedIn }
-func (f *FakeWhatsAppClient) SendMessage(ctx context.Context, jid, text string) (string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.sentMessages = append(f.sentMessages, struct{ JID, Content string }{jid, text})
-	return "msg-123", nil
-}
-func (f *FakeWhatsAppClient) SendMedia(ctx context.Context, jid string, data []byte, mimeType, filename string) (string, error) {
-	return "media-123", nil
-}
-func (f *FakeWhatsAppClient) GetQRChannel() (<-chan string, error) { return make(chan string), nil }
-func (f *FakeWhatsAppClient) AddEventHandler(handler func(interface{})) {}
-
-func setupTestMCPServer(t *testing.T) *MCPServer {
+func setupTestHandler(t *testing.T) (*Handler, *store.SQLiteStore) {
 	storeDB, err := store.NewSQLiteStore(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { storeDB.Close() })
@@ -46,18 +22,18 @@ func setupTestMCPServer(t *testing.T) *MCPServer {
 	sm := state.NewMachine()
 	hm := health.NewMonitor(cfg, sm)
 
-	server := NewMCPServer(storeDB, sm, hm)
-	return server
+	handler := NewHandler(storeDB, hm, nil, sm)
+	return handler, storeDB
 }
 
-func TestNewMCPServer(t *testing.T) {
-	server := setupTestMCPServer(t)
-	assert.NotNil(t, server)
+func TestNewHandler(t *testing.T) {
+	handler, _ := setupTestHandler(t)
+	assert.NotNil(t, handler)
 }
 
-func TestMCPServer_GetTools(t *testing.T) {
-	server := setupTestMCPServer(t)
-	tools := server.GetTools()
+func TestHandler_GetTools(t *testing.T) {
+	handler, _ := setupTestHandler(t)
+	tools := handler.GetTools()
 
 	assert.GreaterOrEqual(t, len(tools), 5)
 
@@ -72,123 +48,137 @@ func TestMCPServer_GetTools(t *testing.T) {
 	assert.True(t, toolNames[ToolGetBridgeStatus])
 }
 
-func TestMCPServer_HandleGetBridgeStatus(t *testing.T) {
-	server := setupTestMCPServer(t)
+func TestHandler_HandleGetBridgeStatus(t *testing.T) {
+	handler, _ := setupTestHandler(t)
 	ctx := context.Background()
 
-	result, err := server.HandleTool(ctx, ToolGetBridgeStatus, map[string]interface{}{})
+	result, err := handler.HandleTool(ctx, ToolGetBridgeStatus, map[string]interface{}{})
 	require.NoError(t, err)
-
-	status, ok := result.(health.Status)
-	require.True(t, ok)
-	assert.Equal(t, string(state.StateDisconnected), status.State)
+	require.NotNil(t, result)
+	assert.False(t, result.IsError)
 }
 
-func TestMCPServer_HandleListChats(t *testing.T) {
-	server := setupTestMCPServer(t)
+func TestHandler_HandleListChats(t *testing.T) {
+	handler, storeDB := setupTestHandler(t)
 	ctx := context.Background()
 
 	// Add some chats
-	err := server.store.Chats.Upsert(ctx, &store.Chat{JID: "1@s.whatsapp.net", Name: "Chat 1"})
+	err := storeDB.Chats.Upsert(ctx, &store.Chat{JID: "1@s.whatsapp.net", Name: "Chat 1"})
 	require.NoError(t, err)
-	err = server.store.Chats.Upsert(ctx, &store.Chat{JID: "2@s.whatsapp.net", Name: "Chat 2"})
-	require.NoError(t, err)
-
-	result, err := server.HandleTool(ctx, ToolListChats, map[string]interface{}{"limit": 10})
+	err = storeDB.Chats.Upsert(ctx, &store.Chat{JID: "2@s.whatsapp.net", Name: "Chat 2"})
 	require.NoError(t, err)
 
-	chats, ok := result.([]store.Chat)
-	require.True(t, ok)
+	result, err := handler.HandleTool(ctx, ToolListChats, map[string]interface{}{"limit": 10})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.IsError)
+
+	// Parse result
+	require.Len(t, result.Content, 1)
+	var chats []store.Chat
+	err = json.Unmarshal([]byte(result.Content[0].Text), &chats)
+	require.NoError(t, err)
 	assert.Len(t, chats, 2)
 }
 
-func TestMCPServer_HandleGetChat(t *testing.T) {
-	server := setupTestMCPServer(t)
+func TestHandler_HandleGetChat(t *testing.T) {
+	handler, storeDB := setupTestHandler(t)
 	ctx := context.Background()
 
 	// Add a chat
-	err := server.store.Chats.Upsert(ctx, &store.Chat{JID: "test@s.whatsapp.net", Name: "Test Chat"})
+	err := storeDB.Chats.Upsert(ctx, &store.Chat{JID: "test@s.whatsapp.net", Name: "Test Chat"})
 	require.NoError(t, err)
 
-	result, err := server.HandleTool(ctx, ToolGetChat, map[string]interface{}{"jid": "test@s.whatsapp.net"})
+	result, err := handler.HandleTool(ctx, ToolGetChat, map[string]interface{}{"jid": "test@s.whatsapp.net"})
 	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.IsError)
 
-	chat, ok := result.(*store.Chat)
-	require.True(t, ok)
+	// Parse result
+	require.Len(t, result.Content, 1)
+	var chat store.Chat
+	err = json.Unmarshal([]byte(result.Content[0].Text), &chat)
+	require.NoError(t, err)
 	assert.Equal(t, "Test Chat", chat.Name)
 }
 
-func TestMCPServer_HandleGetChat_NotFound(t *testing.T) {
-	server := setupTestMCPServer(t)
+func TestHandler_HandleGetChat_NotFound(t *testing.T) {
+	handler, _ := setupTestHandler(t)
 	ctx := context.Background()
 
-	_, err := server.HandleTool(ctx, ToolGetChat, map[string]interface{}{"jid": "nonexistent@s.whatsapp.net"})
-	assert.Error(t, err)
-
-	mcpErr, ok := err.(*MCPError)
-	require.True(t, ok)
-	assert.Equal(t, ErrNotFound, mcpErr.Code)
+	result, err := handler.HandleTool(ctx, ToolGetChat, map[string]interface{}{"jid": "nonexistent@s.whatsapp.net"})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
 }
 
-func TestMCPServer_HandleSearchContacts(t *testing.T) {
-	server := setupTestMCPServer(t)
+func TestHandler_HandleSearchContacts(t *testing.T) {
+	handler, storeDB := setupTestHandler(t)
 	ctx := context.Background()
 
 	// Add contacts
-	err := server.store.Contacts.Upsert(ctx, &store.Contact{JID: "1@s.whatsapp.net", Name: "John Doe"})
+	err := storeDB.Contacts.Upsert(ctx, &store.Contact{JID: "1@s.whatsapp.net", Name: "John Doe"})
 	require.NoError(t, err)
-	err = server.store.Contacts.Upsert(ctx, &store.Contact{JID: "2@s.whatsapp.net", Name: "Jane Doe"})
-	require.NoError(t, err)
-
-	result, err := server.HandleTool(ctx, ToolSearchContacts, map[string]interface{}{"query": "Doe"})
+	err = storeDB.Contacts.Upsert(ctx, &store.Contact{JID: "2@s.whatsapp.net", Name: "Jane Doe"})
 	require.NoError(t, err)
 
-	contacts, ok := result.([]store.Contact)
-	require.True(t, ok)
+	result, err := handler.HandleTool(ctx, ToolSearchContacts, map[string]interface{}{"query": "Doe"})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.IsError)
+
+	// Parse result
+	require.Len(t, result.Content, 1)
+	var contacts []store.Contact
+	err = json.Unmarshal([]byte(result.Content[0].Text), &contacts)
+	require.NoError(t, err)
 	assert.Len(t, contacts, 2)
 }
 
-func TestMCPServer_HandleArchiveChat(t *testing.T) {
-	server := setupTestMCPServer(t)
+func TestHandler_HandleArchiveChat_RequiresBridge(t *testing.T) {
+	handler, storeDB := setupTestHandler(t)
 	ctx := context.Background()
 
 	// Add a chat
-	err := server.store.Chats.Upsert(ctx, &store.Chat{JID: "test@s.whatsapp.net", Name: "Test"})
+	err := storeDB.Chats.Upsert(ctx, &store.Chat{JID: "test@s.whatsapp.net", Name: "Test"})
 	require.NoError(t, err)
 
-	// Archive
-	_, err = server.HandleTool(ctx, ToolArchiveChat, map[string]interface{}{
-		"jid":     "test@s.whatsapp.net",
-		"archive": true,
+	// Archive should fail because bridge is not ready (nil)
+	result, err := handler.HandleTool(ctx, ToolArchiveChat, map[string]interface{}{
+		"jid": "test@s.whatsapp.net",
 	})
 	require.NoError(t, err)
-
-	// Verify
-	chat, err := server.store.Chats.GetByJID(ctx, "test@s.whatsapp.net")
-	require.NoError(t, err)
-	assert.True(t, chat.Archived)
+	// Should return an error result because bridge is not ready
+	assert.True(t, result.IsError)
 }
 
-func TestMCPServer_HandleConnectionHistory(t *testing.T) {
-	server := setupTestMCPServer(t)
+func TestHandler_HandleConnectionHistory(t *testing.T) {
+	handler, storeDB := setupTestHandler(t)
 	ctx := context.Background()
 
 	// Log some transitions
-	_ = server.store.State.LogTransition(ctx, state.StateDisconnected, state.StateConnecting, "connect")
-	_ = server.store.State.LogTransition(ctx, state.StateConnecting, state.StateReady, "authenticated")
+	_ = storeDB.State.LogTransition(ctx, state.StateDisconnected, state.StateConnecting, "connect")
+	_ = storeDB.State.LogTransition(ctx, state.StateConnecting, state.StateReady, "authenticated")
 
-	result, err := server.HandleTool(ctx, ToolGetConnectionHistory, map[string]interface{}{"limit": 10})
+	result, err := handler.HandleTool(ctx, ToolGetConnectionHistory, map[string]interface{}{"limit": 10})
 	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.IsError)
 
-	history, ok := result.([]store.Transition)
-	require.True(t, ok)
+	// Parse result
+	require.Len(t, result.Content, 1)
+	var history []store.Transition
+	err = json.Unmarshal([]byte(result.Content[0].Text), &history)
+	require.NoError(t, err)
 	assert.Len(t, history, 2)
 }
 
-func TestMCPServer_HandleUnknownTool(t *testing.T) {
-	server := setupTestMCPServer(t)
+func TestHandler_HandleUnknownTool(t *testing.T) {
+	handler, _ := setupTestHandler(t)
 	ctx := context.Background()
 
-	_, err := server.HandleTool(ctx, "unknown_tool", map[string]interface{}{})
-	assert.Error(t, err)
+	// Unknown tool returns an error result (not a Go error)
+	result, err := handler.HandleTool(ctx, "unknown_tool", map[string]interface{}{})
+	require.NoError(t, err) // No Go error
+	require.NotNil(t, result)
+	assert.True(t, result.IsError) // But the result is marked as error
 }

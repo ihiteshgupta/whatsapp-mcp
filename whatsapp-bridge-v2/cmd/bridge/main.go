@@ -15,6 +15,7 @@ import (
 	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/state"
 	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/store"
 	"github.com/hiteshgupta/whatsapp-bridge-v2/pkg/api"
+	"github.com/hiteshgupta/whatsapp-bridge-v2/pkg/mcp"
 )
 
 var (
@@ -58,13 +59,13 @@ func main() {
 		level = slog.LevelInfo
 	}
 
-	var handler slog.Handler
+	var logHandler slog.Handler
 	if cfg.LogFormat == "text" {
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+		logHandler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
 	} else {
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+		logHandler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
 	}
-	logger := slog.New(handler)
+	logger := slog.New(logHandler)
 	slog.SetDefault(logger)
 
 	logger.Info("WhatsApp Bridge V2 starting",
@@ -88,27 +89,39 @@ func main() {
 	hm.Start()
 	defer hm.Stop()
 
-	// Initialize MCP server
-	mcpServer := api.NewMCPServer(storeDB, sm, hm)
-	_ = mcpServer // Will be used for MCP protocol handling
+	// Initialize API handler (bridge will be set when whatsmeow client is ready)
+	handler := api.NewHandler(storeDB, hm, nil, sm)
+
+	// Initialize MCP server with stdio transport
+	mcpServer := mcp.NewServer(os.Stdin, os.Stdout, handler, logger)
 
 	logger.Info("Bridge initialized",
 		"store_path", cfg.StorePath,
 		"state", sm.MustState(),
 	)
 
-	// Wait for shutdown signal
+	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// Run MCP server in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- mcpServer.Run(ctx)
+	}()
+
+	// Wait for shutdown signal or server error
 	select {
 	case sig := <-sigChan:
 		logger.Info("Received shutdown signal", "signal", sig)
-	case <-ctx.Done():
-		logger.Info("Context cancelled")
+		cancel() // Signal server to stop
+	case err := <-errChan:
+		if err != nil && err != context.Canceled {
+			logger.Error("MCP server error", "error", err)
+		}
 	}
 
 	// Graceful shutdown

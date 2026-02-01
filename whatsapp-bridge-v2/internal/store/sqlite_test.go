@@ -71,8 +71,7 @@ func TestSQLiteMessageRepo_GetByChat(t *testing.T) {
 	}
 
 	// Get with limit
-	opts := QueryOpts{Limit: 3}
-	messages, err := store.Messages.GetByChat(ctx, "123@s.whatsapp.net", opts)
+	messages, err := store.Messages.List(ctx, "123@s.whatsapp.net", 3, "")
 	require.NoError(t, err)
 	assert.Len(t, messages, 3)
 
@@ -101,7 +100,7 @@ func TestSQLiteMessageRepo_Search(t *testing.T) {
 	}
 
 	// Search for "World"
-	results, err := store.Messages.Search(ctx, "World", DefaultQueryOpts())
+	results, err := store.Messages.Search(ctx, "World", 50)
 	require.NoError(t, err)
 	assert.Len(t, results, 2)
 }
@@ -170,7 +169,7 @@ func TestSQLiteChatRepo_GetAll(t *testing.T) {
 	}
 
 	// Get all
-	all, err := store.Chats.GetAll(ctx)
+	all, err := store.Chats.List(ctx, 50)
 	require.NoError(t, err)
 	assert.Len(t, all, 3)
 }
@@ -225,7 +224,7 @@ func TestSQLiteChatRepo_Mute(t *testing.T) {
 
 	// Mute until tomorrow
 	muteUntil := time.Now().Add(24 * time.Hour)
-	err = store.Chats.Mute(ctx, chat.JID, &muteUntil)
+	err = store.Chats.Mute(ctx, chat.JID, true, &muteUntil)
 	require.NoError(t, err)
 
 	retrieved, _ := store.Chats.GetByJID(ctx, chat.JID)
@@ -233,7 +232,7 @@ func TestSQLiteChatRepo_Mute(t *testing.T) {
 	assert.WithinDuration(t, muteUntil, *retrieved.MutedUntil, time.Second)
 
 	// Unmute
-	err = store.Chats.Mute(ctx, chat.JID, nil)
+	err = store.Chats.Mute(ctx, chat.JID, false, nil)
 	require.NoError(t, err)
 	retrieved, _ = store.Chats.GetByJID(ctx, chat.JID)
 	assert.Nil(t, retrieved.MutedUntil)
@@ -274,7 +273,7 @@ func TestSQLiteContactRepo_Search(t *testing.T) {
 	}
 
 	// Search for "Doe"
-	results, err := store.Contacts.Search(ctx, "Doe")
+	results, err := store.Contacts.Search(ctx, "Doe", 20)
 	require.NoError(t, err)
 	assert.Len(t, results, 2)
 }

@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
@@ -12,15 +11,14 @@ import (
 	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/state"
 )
 
-// ErrNotFound is returned when a record is not found.
-var ErrNotFound = errors.New("record not found")
-
 // SQLiteStore implements all repositories using SQLite.
 type SQLiteStore struct {
 	db       *sql.DB
 	Messages *SQLiteMessageRepo
 	Chats    *SQLiteChatRepo
 	Contacts *SQLiteContactRepo
+	Groups   *SQLiteGroupRepo
+	Status   *SQLiteStatusRepo
 	State    *SQLiteStateRepo
 }
 
@@ -42,6 +40,8 @@ func NewSQLiteStore(dsn string) (*SQLiteStore, error) {
 		Messages: &SQLiteMessageRepo{db: db},
 		Chats:    &SQLiteChatRepo{db: db},
 		Contacts: &SQLiteContactRepo{db: db},
+		Groups:   &SQLiteGroupRepo{db: db},
+		Status:   &SQLiteStatusRepo{db: db},
 		State:    &SQLiteStateRepo{db: db},
 	}
 
@@ -64,7 +64,9 @@ func runMigrations(db *sql.DB) error {
 		unread_count INTEGER NOT NULL DEFAULT 0,
 		archived BOOLEAN NOT NULL DEFAULT FALSE,
 		pinned BOOLEAN NOT NULL DEFAULT FALSE,
-		muted_until TIMESTAMP
+		muted BOOLEAN NOT NULL DEFAULT FALSE,
+		muted_until TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_chats_last_message ON chats(last_message_time DESC);
@@ -81,22 +83,71 @@ func runMigrations(db *sql.DB) error {
 		filename TEXT NOT NULL DEFAULT '',
 		media_url TEXT NOT NULL DEFAULT '',
 		media_key BLOB,
+		file_sha256 BLOB,
+		file_length INTEGER NOT NULL DEFAULT 0,
 		quoted_id TEXT NOT NULL DEFAULT '',
 		quoted_sender TEXT NOT NULL DEFAULT '',
+		is_starred BOOLEAN NOT NULL DEFAULT FALSE,
+		is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+		reactions TEXT NOT NULL DEFAULT '[]',
 		PRIMARY KEY (id, chat_jid),
 		FOREIGN KEY (chat_jid) REFERENCES chats(jid) ON DELETE CASCADE
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_messages_chat_timestamp ON messages(chat_jid, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_messages_starred ON messages(is_starred) WHERE is_starred = TRUE;
 
 	-- Contacts table
 	CREATE TABLE IF NOT EXISTS contacts (
 		jid TEXT PRIMARY KEY,
 		name TEXT NOT NULL DEFAULT '',
 		push_name TEXT NOT NULL DEFAULT '',
+		phone TEXT NOT NULL DEFAULT '',
 		business_name TEXT NOT NULL DEFAULT '',
-		blocked BOOLEAN NOT NULL DEFAULT FALSE
+		blocked BOOLEAN NOT NULL DEFAULT FALSE,
+		is_saved BOOLEAN NOT NULL DEFAULT FALSE,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
+
+	CREATE INDEX IF NOT EXISTS idx_contacts_blocked ON contacts(blocked) WHERE blocked = TRUE;
+
+	-- Groups table
+	CREATE TABLE IF NOT EXISTS groups (
+		jid TEXT PRIMARY KEY,
+		name TEXT NOT NULL DEFAULT '',
+		topic TEXT NOT NULL DEFAULT '',
+		created_at TIMESTAMP,
+		created_by TEXT NOT NULL DEFAULT '',
+		invite_link TEXT NOT NULL DEFAULT '',
+		is_announce BOOLEAN NOT NULL DEFAULT FALSE,
+		is_locked BOOLEAN NOT NULL DEFAULT FALSE,
+		participant_count INTEGER NOT NULL DEFAULT 0,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- Group participants table
+	CREATE TABLE IF NOT EXISTS group_participants (
+		group_jid TEXT NOT NULL,
+		user_jid TEXT NOT NULL,
+		role TEXT NOT NULL DEFAULT 'member',
+		joined_at TIMESTAMP,
+		PRIMARY KEY (group_jid, user_jid),
+		FOREIGN KEY (group_jid) REFERENCES groups(jid) ON DELETE CASCADE
+	);
+
+	-- Status updates table
+	CREATE TABLE IF NOT EXISTS status_updates (
+		id TEXT PRIMARY KEY,
+		sender_jid TEXT NOT NULL,
+		media_type TEXT NOT NULL DEFAULT '',
+		content TEXT NOT NULL DEFAULT '',
+		posted_at TIMESTAMP NOT NULL,
+		expires_at TIMESTAMP NOT NULL,
+		viewed BOOLEAN NOT NULL DEFAULT FALSE
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_status_sender ON status_updates(sender_jid);
+	CREATE INDEX IF NOT EXISTS idx_status_expires ON status_updates(expires_at);
 
 	-- State table
 	CREATE TABLE IF NOT EXISTS bridge_state (
@@ -130,25 +181,42 @@ type SQLiteMessageRepo struct {
 func (r *SQLiteMessageRepo) Store(ctx context.Context, msg *Message) error {
 	query := `
 		INSERT OR REPLACE INTO messages
-		(id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, media_key, quoted_id, quoted_sender)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, media_key, file_sha256, file_length, quoted_id, quoted_sender, is_starred, is_deleted)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		msg.ID, msg.ChatJID, msg.Sender, msg.Content, msg.Timestamp, msg.IsFromMe,
-		msg.MediaType, msg.Filename, msg.MediaURL, msg.MediaKey, msg.QuotedID, msg.QuotedSender,
+		msg.MediaType, msg.Filename, msg.MediaURL, msg.MediaKey, msg.FileSHA256, msg.FileLength,
+		msg.QuotedID, msg.QuotedSender, msg.IsStarred, msg.IsDeleted,
 	)
 	return err
 }
 
-func (r *SQLiteMessageRepo) GetByChat(ctx context.Context, chatJID string, opts QueryOpts) ([]Message, error) {
-	query := `
-		SELECT id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, media_key, quoted_id, quoted_sender
-		FROM messages
-		WHERE chat_jid = ?
-		ORDER BY timestamp DESC
-		LIMIT ? OFFSET ?
-	`
-	rows, err := r.db.QueryContext(ctx, query, chatJID, opts.Limit, opts.Offset)
+func (r *SQLiteMessageRepo) List(ctx context.Context, chatJID string, limit int, before string) ([]Message, error) {
+	var query string
+	var args []interface{}
+
+	if before != "" {
+		query = `
+			SELECT id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, quoted_id, quoted_sender, is_starred, is_deleted
+			FROM messages
+			WHERE chat_jid = ? AND timestamp < (SELECT timestamp FROM messages WHERE id = ? AND chat_jid = ?)
+			ORDER BY timestamp DESC
+			LIMIT ?
+		`
+		args = []interface{}{chatJID, before, chatJID, limit}
+	} else {
+		query = `
+			SELECT id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, quoted_id, quoted_sender, is_starred, is_deleted
+			FROM messages
+			WHERE chat_jid = ?
+			ORDER BY timestamp DESC
+			LIMIT ?
+		`
+		args = []interface{}{chatJID, limit}
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +227,7 @@ func (r *SQLiteMessageRepo) GetByChat(ctx context.Context, chatJID string, opts 
 
 func (r *SQLiteMessageRepo) GetByID(ctx context.Context, chatJID, msgID string) (*Message, error) {
 	query := `
-		SELECT id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, media_key, quoted_id, quoted_sender
+		SELECT id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, quoted_id, quoted_sender, is_starred, is_deleted
 		FROM messages
 		WHERE chat_jid = ? AND id = ?
 	`
@@ -168,7 +236,7 @@ func (r *SQLiteMessageRepo) GetByID(ctx context.Context, chatJID, msgID string) 
 	var msg Message
 	err := row.Scan(
 		&msg.ID, &msg.ChatJID, &msg.Sender, &msg.Content, &msg.Timestamp, &msg.IsFromMe,
-		&msg.MediaType, &msg.Filename, &msg.MediaURL, &msg.MediaKey, &msg.QuotedID, &msg.QuotedSender,
+		&msg.MediaType, &msg.Filename, &msg.MediaURL, &msg.QuotedID, &msg.QuotedSender, &msg.IsStarred, &msg.IsDeleted,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
@@ -179,21 +247,26 @@ func (r *SQLiteMessageRepo) GetByID(ctx context.Context, chatJID, msgID string) 
 	return &msg, nil
 }
 
-func (r *SQLiteMessageRepo) Search(ctx context.Context, query string, opts QueryOpts) ([]Message, error) {
+func (r *SQLiteMessageRepo) Search(ctx context.Context, query string, limit int) ([]Message, error) {
 	sqlQuery := `
-		SELECT id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, media_key, quoted_id, quoted_sender
+		SELECT id, chat_jid, sender, content, timestamp, is_from_me, media_type, filename, media_url, quoted_id, quoted_sender, is_starred, is_deleted
 		FROM messages
 		WHERE content LIKE ?
 		ORDER BY timestamp DESC
-		LIMIT ? OFFSET ?
+		LIMIT ?
 	`
-	rows, err := r.db.QueryContext(ctx, sqlQuery, "%"+query+"%", opts.Limit, opts.Offset)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, "%"+query+"%", limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	return scanMessages(rows)
+}
+
+func (r *SQLiteMessageRepo) SetStarred(ctx context.Context, chatJID, msgID string, starred bool) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE messages SET is_starred = ? WHERE chat_jid = ? AND id = ?", starred, chatJID, msgID)
+	return err
 }
 
 func (r *SQLiteMessageRepo) Delete(ctx context.Context, chatJID, msgID string) error {
@@ -213,7 +286,7 @@ func scanMessages(rows *sql.Rows) ([]Message, error) {
 		var msg Message
 		err := rows.Scan(
 			&msg.ID, &msg.ChatJID, &msg.Sender, &msg.Content, &msg.Timestamp, &msg.IsFromMe,
-			&msg.MediaType, &msg.Filename, &msg.MediaURL, &msg.MediaKey, &msg.QuotedID, &msg.QuotedSender,
+			&msg.MediaType, &msg.Filename, &msg.MediaURL, &msg.QuotedID, &msg.QuotedSender, &msg.IsStarred, &msg.IsDeleted,
 		)
 		if err != nil {
 			return nil, err
@@ -230,8 +303,8 @@ type SQLiteChatRepo struct {
 
 func (r *SQLiteChatRepo) Upsert(ctx context.Context, chat *Chat) error {
 	query := `
-		INSERT INTO chats (jid, name, is_group, last_message_time, unread_count, archived, pinned, muted_until)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO chats (jid, name, is_group, last_message_time, unread_count, archived, pinned, muted, muted_until, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(jid) DO UPDATE SET
 			name = excluded.name,
 			is_group = excluded.is_group,
@@ -239,22 +312,25 @@ func (r *SQLiteChatRepo) Upsert(ctx context.Context, chat *Chat) error {
 			unread_count = excluded.unread_count,
 			archived = excluded.archived,
 			pinned = excluded.pinned,
-			muted_until = excluded.muted_until
+			muted = excluded.muted,
+			muted_until = excluded.muted_until,
+			updated_at = excluded.updated_at
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		chat.JID, chat.Name, chat.IsGroup, chat.LastMessageTime, chat.UnreadCount,
-		chat.Archived, chat.Pinned, chat.MutedUntil,
+		chat.Archived, chat.Pinned, chat.Muted, chat.MutedUntil, time.Now(),
 	)
 	return err
 }
 
-func (r *SQLiteChatRepo) GetAll(ctx context.Context) ([]Chat, error) {
+func (r *SQLiteChatRepo) List(ctx context.Context, limit int) ([]Chat, error) {
 	query := `
-		SELECT jid, name, is_group, last_message_time, unread_count, archived, pinned, muted_until
+		SELECT jid, name, is_group, last_message_time, unread_count, archived, pinned, muted, muted_until, updated_at
 		FROM chats
 		ORDER BY last_message_time DESC
+		LIMIT ?
 	`
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +341,7 @@ func (r *SQLiteChatRepo) GetAll(ctx context.Context) ([]Chat, error) {
 
 func (r *SQLiteChatRepo) GetByJID(ctx context.Context, jid string) (*Chat, error) {
 	query := `
-		SELECT jid, name, is_group, last_message_time, unread_count, archived, pinned, muted_until
+		SELECT jid, name, is_group, last_message_time, unread_count, archived, pinned, muted, muted_until, updated_at
 		FROM chats WHERE jid = ?
 	`
 	row := r.db.QueryRowContext(ctx, query, jid)
@@ -274,7 +350,7 @@ func (r *SQLiteChatRepo) GetByJID(ctx context.Context, jid string) (*Chat, error
 	var lastMsgTime sql.NullTime
 	var mutedUntil sql.NullTime
 
-	err := row.Scan(&chat.JID, &chat.Name, &chat.IsGroup, &lastMsgTime, &chat.UnreadCount, &chat.Archived, &chat.Pinned, &mutedUntil)
+	err := row.Scan(&chat.JID, &chat.Name, &chat.IsGroup, &lastMsgTime, &chat.UnreadCount, &chat.Archived, &chat.Pinned, &chat.Muted, &mutedUntil, &chat.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -293,22 +369,22 @@ func (r *SQLiteChatRepo) GetByJID(ctx context.Context, jid string) (*Chat, error
 }
 
 func (r *SQLiteChatRepo) UpdateLastMessage(ctx context.Context, jid string, t time.Time) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE chats SET last_message_time = ? WHERE jid = ?", t, jid)
+	_, err := r.db.ExecContext(ctx, "UPDATE chats SET last_message_time = ?, updated_at = ? WHERE jid = ?", t, time.Now(), jid)
 	return err
 }
 
 func (r *SQLiteChatRepo) Archive(ctx context.Context, jid string, archived bool) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE chats SET archived = ? WHERE jid = ?", archived, jid)
+	_, err := r.db.ExecContext(ctx, "UPDATE chats SET archived = ?, updated_at = ? WHERE jid = ?", archived, time.Now(), jid)
 	return err
 }
 
 func (r *SQLiteChatRepo) Pin(ctx context.Context, jid string, pinned bool) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE chats SET pinned = ? WHERE jid = ?", pinned, jid)
+	_, err := r.db.ExecContext(ctx, "UPDATE chats SET pinned = ?, updated_at = ? WHERE jid = ?", pinned, time.Now(), jid)
 	return err
 }
 
-func (r *SQLiteChatRepo) Mute(ctx context.Context, jid string, until *time.Time) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE chats SET muted_until = ? WHERE jid = ?", until, jid)
+func (r *SQLiteChatRepo) Mute(ctx context.Context, jid string, muted bool, until *time.Time) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE chats SET muted = ?, muted_until = ?, updated_at = ? WHERE jid = ?", muted, until, time.Now(), jid)
 	return err
 }
 
@@ -330,7 +406,7 @@ func scanChats(rows *sql.Rows) ([]Chat, error) {
 		var lastMsgTime sql.NullTime
 		var mutedUntil sql.NullTime
 
-		err := rows.Scan(&chat.JID, &chat.Name, &chat.IsGroup, &lastMsgTime, &chat.UnreadCount, &chat.Archived, &chat.Pinned, &mutedUntil)
+		err := rows.Scan(&chat.JID, &chat.Name, &chat.IsGroup, &lastMsgTime, &chat.UnreadCount, &chat.Archived, &chat.Pinned, &chat.Muted, &mutedUntil, &chat.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -354,26 +430,30 @@ type SQLiteContactRepo struct {
 
 func (r *SQLiteContactRepo) Upsert(ctx context.Context, contact *Contact) error {
 	query := `
-		INSERT INTO contacts (jid, name, push_name, business_name, blocked)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO contacts (jid, name, push_name, phone, business_name, blocked, is_saved, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(jid) DO UPDATE SET
 			name = excluded.name,
 			push_name = excluded.push_name,
+			phone = excluded.phone,
 			business_name = excluded.business_name,
-			blocked = excluded.blocked
+			blocked = excluded.blocked,
+			is_saved = excluded.is_saved,
+			updated_at = excluded.updated_at
 	`
-	_, err := r.db.ExecContext(ctx, query, contact.JID, contact.Name, contact.PushName, contact.BusinessName, contact.Blocked)
+	_, err := r.db.ExecContext(ctx, query, contact.JID, contact.Name, contact.PushName, contact.Phone, contact.BusinessName, contact.Blocked, contact.IsSaved, time.Now())
 	return err
 }
 
-func (r *SQLiteContactRepo) Search(ctx context.Context, query string) ([]Contact, error) {
+func (r *SQLiteContactRepo) Search(ctx context.Context, query string, limit int) ([]Contact, error) {
 	sqlQuery := `
-		SELECT jid, name, push_name, business_name, blocked
+		SELECT jid, name, push_name, phone, business_name, blocked, is_saved, updated_at
 		FROM contacts
-		WHERE name LIKE ? OR push_name LIKE ? OR business_name LIKE ?
+		WHERE name LIKE ? OR push_name LIKE ? OR business_name LIKE ? OR phone LIKE ?
+		LIMIT ?
 	`
 	pattern := "%" + query + "%"
-	rows, err := r.db.QueryContext(ctx, sqlQuery, pattern, pattern, pattern)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, pattern, pattern, pattern, pattern, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -383,11 +463,11 @@ func (r *SQLiteContactRepo) Search(ctx context.Context, query string) ([]Contact
 }
 
 func (r *SQLiteContactRepo) GetByJID(ctx context.Context, jid string) (*Contact, error) {
-	query := `SELECT jid, name, push_name, business_name, blocked FROM contacts WHERE jid = ?`
+	query := `SELECT jid, name, push_name, phone, business_name, blocked, is_saved, updated_at FROM contacts WHERE jid = ?`
 	row := r.db.QueryRowContext(ctx, query, jid)
 
 	var contact Contact
-	err := row.Scan(&contact.JID, &contact.Name, &contact.PushName, &contact.BusinessName, &contact.Blocked)
+	err := row.Scan(&contact.JID, &contact.Name, &contact.PushName, &contact.Phone, &contact.BusinessName, &contact.Blocked, &contact.IsSaved, &contact.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -398,12 +478,12 @@ func (r *SQLiteContactRepo) GetByJID(ctx context.Context, jid string) (*Contact,
 }
 
 func (r *SQLiteContactRepo) Block(ctx context.Context, jid string, blocked bool) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE contacts SET blocked = ? WHERE jid = ?", blocked, jid)
+	_, err := r.db.ExecContext(ctx, "UPDATE contacts SET blocked = ?, updated_at = ? WHERE jid = ?", blocked, time.Now(), jid)
 	return err
 }
 
 func (r *SQLiteContactRepo) GetBlocked(ctx context.Context) ([]Contact, error) {
-	rows, err := r.db.QueryContext(ctx, "SELECT jid, name, push_name, business_name, blocked FROM contacts WHERE blocked = TRUE")
+	rows, err := r.db.QueryContext(ctx, "SELECT jid, name, push_name, phone, business_name, blocked, is_saved, updated_at FROM contacts WHERE blocked = TRUE")
 	if err != nil {
 		return nil, err
 	}
@@ -427,13 +507,172 @@ func scanContacts(rows *sql.Rows) ([]Contact, error) {
 	var contacts []Contact
 	for rows.Next() {
 		var contact Contact
-		err := rows.Scan(&contact.JID, &contact.Name, &contact.PushName, &contact.BusinessName, &contact.Blocked)
+		err := rows.Scan(&contact.JID, &contact.Name, &contact.PushName, &contact.Phone, &contact.BusinessName, &contact.Blocked, &contact.IsSaved, &contact.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
 		contacts = append(contacts, contact)
 	}
 	return contacts, rows.Err()
+}
+
+// SQLiteGroupRepo implements GroupRepository.
+type SQLiteGroupRepo struct {
+	db *sql.DB
+}
+
+func (r *SQLiteGroupRepo) Upsert(ctx context.Context, group *Group) error {
+	query := `
+		INSERT INTO groups (jid, name, topic, created_at, created_by, invite_link, is_announce, is_locked, participant_count, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(jid) DO UPDATE SET
+			name = excluded.name,
+			topic = excluded.topic,
+			invite_link = excluded.invite_link,
+			is_announce = excluded.is_announce,
+			is_locked = excluded.is_locked,
+			participant_count = excluded.participant_count,
+			updated_at = excluded.updated_at
+	`
+	_, err := r.db.ExecContext(ctx, query, group.JID, group.Name, group.Topic, group.CreatedAt, group.CreatedBy, group.InviteLink, group.IsAnnounce, group.IsLocked, group.ParticipantCount, time.Now())
+	return err
+}
+
+func (r *SQLiteGroupRepo) GetByJID(ctx context.Context, jid string) (*Group, error) {
+	query := `SELECT jid, name, topic, created_at, created_by, invite_link, is_announce, is_locked, participant_count, updated_at FROM groups WHERE jid = ?`
+	row := r.db.QueryRowContext(ctx, query, jid)
+
+	var group Group
+	var createdAt sql.NullTime
+	err := row.Scan(&group.JID, &group.Name, &group.Topic, &createdAt, &group.CreatedBy, &group.InviteLink, &group.IsAnnounce, &group.IsLocked, &group.ParticipantCount, &group.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if createdAt.Valid {
+		group.CreatedAt = createdAt.Time
+	}
+	return &group, nil
+}
+
+func (r *SQLiteGroupRepo) UpdateParticipants(ctx context.Context, groupJID string, participants []GroupParticipant) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Clear existing participants
+	_, err = tx.ExecContext(ctx, "DELETE FROM group_participants WHERE group_jid = ?", groupJID)
+	if err != nil {
+		return err
+	}
+
+	// Insert new participants
+	for _, p := range participants {
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO group_participants (group_jid, user_jid, role, joined_at) VALUES (?, ?, ?, ?)",
+			groupJID, p.UserJID, p.Role, p.JoinedAt,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Update participant count
+	_, err = tx.ExecContext(ctx, "UPDATE groups SET participant_count = ?, updated_at = ? WHERE jid = ?", len(participants), time.Now(), groupJID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *SQLiteGroupRepo) GetParticipants(ctx context.Context, groupJID string) ([]GroupParticipant, error) {
+	rows, err := r.db.QueryContext(ctx, "SELECT group_jid, user_jid, role, joined_at FROM group_participants WHERE group_jid = ?", groupJID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var participants []GroupParticipant
+	for rows.Next() {
+		var p GroupParticipant
+		var joinedAt sql.NullTime
+		err := rows.Scan(&p.GroupJID, &p.UserJID, &p.Role, &joinedAt)
+		if err != nil {
+			return nil, err
+		}
+		if joinedAt.Valid {
+			p.JoinedAt = joinedAt.Time
+		}
+		participants = append(participants, p)
+	}
+	return participants, rows.Err()
+}
+
+func (r *SQLiteGroupRepo) Delete(ctx context.Context, jid string) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM groups WHERE jid = ?", jid)
+	return err
+}
+
+// SQLiteStatusRepo implements StatusRepository.
+type SQLiteStatusRepo struct {
+	db *sql.DB
+}
+
+func (r *SQLiteStatusRepo) Store(ctx context.Context, status *StatusUpdate) error {
+	query := `
+		INSERT OR REPLACE INTO status_updates (id, sender_jid, media_type, content, posted_at, expires_at, viewed)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err := r.db.ExecContext(ctx, query, status.ID, status.SenderJID, status.MediaType, status.Content, status.PostedAt, status.ExpiresAt, status.Viewed)
+	return err
+}
+
+func (r *SQLiteStatusRepo) GetAll(ctx context.Context) ([]StatusUpdate, error) {
+	rows, err := r.db.QueryContext(ctx, "SELECT id, sender_jid, media_type, content, posted_at, expires_at, viewed FROM status_updates WHERE expires_at > ? ORDER BY posted_at DESC", time.Now())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanStatuses(rows)
+}
+
+func (r *SQLiteStatusRepo) GetByContact(ctx context.Context, contactJID string) ([]StatusUpdate, error) {
+	rows, err := r.db.QueryContext(ctx, "SELECT id, sender_jid, media_type, content, posted_at, expires_at, viewed FROM status_updates WHERE sender_jid = ? AND expires_at > ? ORDER BY posted_at DESC", contactJID, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanStatuses(rows)
+}
+
+func (r *SQLiteStatusRepo) Delete(ctx context.Context, statusID string) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM status_updates WHERE id = ?", statusID)
+	return err
+}
+
+func (r *SQLiteStatusRepo) DeleteExpired(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM status_updates WHERE expires_at <= ?", time.Now())
+	return err
+}
+
+func scanStatuses(rows *sql.Rows) ([]StatusUpdate, error) {
+	var statuses []StatusUpdate
+	for rows.Next() {
+		var s StatusUpdate
+		err := rows.Scan(&s.ID, &s.SenderJID, &s.MediaType, &s.Content, &s.PostedAt, &s.ExpiresAt, &s.Viewed)
+		if err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, s)
+	}
+	return statuses, rows.Err()
 }
 
 // SQLiteStateRepo implements StateRepository.
