@@ -1,0 +1,25 @@
+# WhatsApp Bridge V2 Configuration
+
+# Paths
+session_path: ./store/whatsapp.db
+store_path: ./store/messages.db
+
+# Connection
+connect_timeout: 30s
+
+# Health & Reconnection
+keepalive_interval: 30s
+reconnect_max_retries: 10
+reconnect_base_delay: 1s
+reconnect_max_delay: 5m
+
+# Logging
+log_level: info    # debug, info, warn, error
+log_format: json   # json, text
+
+# Metrics
+metrics_enabled: true
+metrics_port: 9090
+
+# MCP
+mcp_enabled: true

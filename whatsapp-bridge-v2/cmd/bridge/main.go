@@ -8,14 +8,18 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/config"
 	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/health"
 	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/state"
 	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/store"
+	"github.com/hiteshgupta/whatsapp-bridge-v2/internal/whatsapp"
 	"github.com/hiteshgupta/whatsapp-bridge-v2/pkg/api"
 	"github.com/hiteshgupta/whatsapp-bridge-v2/pkg/mcp"
+	"github.com/mdp/qrterminal/v3"
+	"github.com/skip2/go-qrcode"
 )
 
 var (
@@ -61,9 +65,9 @@ func main() {
 
 	var logHandler slog.Handler
 	if cfg.LogFormat == "text" {
-		logHandler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+		logHandler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})
 	} else {
-		logHandler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+		logHandler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level})
 	}
 	logger := slog.New(logHandler)
 	slog.SetDefault(logger)
@@ -89,23 +93,72 @@ func main() {
 	hm.Start()
 	defer hm.Stop()
 
-	// Initialize API handler (bridge will be set when whatsmeow client is ready)
-	handler := api.NewHandler(storeDB, hm, nil, sm)
-
-	// Initialize MCP server with stdio transport
-	mcpServer := mcp.NewServer(os.Stdin, os.Stdout, handler, logger)
-
-	logger.Info("Bridge initialized",
-		"store_path", cfg.StorePath,
-		"state", sm.MustState(),
-	)
-
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Initialize WhatsApp client
+	waConfig := &whatsapp.Config{
+		StorePath: cfg.SessionPath,
+		StateMgr:  sm,
+	}
+	waClient, err := whatsapp.NewClient(ctx, waConfig, logger)
+	if err != nil {
+		logger.Error("Failed to create WhatsApp client", "error", err)
+		os.Exit(1)
+	}
+	defer waClient.Disconnect()
+
+	// Get QR channel before connecting
+	qrChan := waClient.GetQRChannel()
+
+	// Connect to WhatsApp in background
+	go func() {
+		if err := waClient.Connect(ctx); err != nil {
+			logger.Error("WhatsApp connection error", "error", err)
+		}
+	}()
+
+	// Handle QR codes in background - save to file and print to stderr
+	qrFilePath := filepath.Join(filepath.Dir(cfg.StorePath), "qrcode.png")
+	go func() {
+		for qr := range qrChan {
+			// Save QR code as PNG image file
+			if err := qrcode.WriteFile(qr, qrcode.Medium, 256, qrFilePath); err == nil {
+				logger.Info("QR code saved to file - open this file to scan",
+					"path", qrFilePath,
+				)
+				fmt.Fprintf(os.Stderr, "\n╔══════════════════════════════════════════════════════╗\n")
+				fmt.Fprintf(os.Stderr, "║  QR CODE SAVED - Open this file to scan with phone:  ║\n")
+				fmt.Fprintf(os.Stderr, "║  %s\n", qrFilePath)
+				fmt.Fprintf(os.Stderr, "╚══════════════════════════════════════════════════════╝\n\n")
+			} else {
+				logger.Error("Failed to save QR code to file", "error", err)
+			}
+
+			// Also print to stderr for terminals that support it
+			fmt.Fprintln(os.Stderr, "╔══════════════════════════════════════════╗")
+			fmt.Fprintln(os.Stderr, "║  Scan this QR code with WhatsApp Mobile  ║")
+			fmt.Fprintln(os.Stderr, "╚══════════════════════════════════════════╝")
+			qrterminal.GenerateHalfBlock(qr, qrterminal.L, os.Stderr)
+			fmt.Fprintln(os.Stderr, "")
+		}
+	}()
+
+	// Initialize API handler with WhatsApp client
+	handler := api.NewHandler(storeDB, hm, waClient, sm)
+
+	// Initialize MCP server with stdio transport
+	mcpServer := mcp.NewServer(os.Stdin, os.Stdout, handler, logger)
+
+	logger.Info("Bridge initialized",
+		"store_path", cfg.StorePath,
+		"session_path", cfg.SessionPath,
+		"state", sm.MustState(),
+	)
 
 	// Run MCP server in goroutine
 	errChan := make(chan error, 1)

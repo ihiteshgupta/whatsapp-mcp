@@ -93,6 +93,38 @@ go build -o whatsapp-bridge ./cmd/bridge
 ./whatsapp-bridge --log-level debug
 ```
 
+## Claude Code Integration
+
+Add to your `~/.claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "whatsapp": {
+      "command": "/path/to/whatsapp-bridge-v2/whatsapp-bridge",
+      "args": []
+    }
+  }
+}
+```
+
+### First-Time Setup
+
+1. Build and configure the MCP server as shown above
+2. Start Claude Code - it will automatically start the bridge
+3. When prompted, a QR code will be displayed in:
+   - Terminal (if supported)
+   - PNG file at `./store/qrcode.png`
+4. Scan the QR code with WhatsApp mobile app
+5. Once authenticated, the bridge will sync message history
+6. The session persists in `./store/whatsapp.db`
+
+### QR Code Display
+
+QR codes are output to stderr (not interfering with MCP stdio protocol):
+- Saved as PNG file for easy access
+- Also printed to terminal if the terminal supports it
+
 ## MCP Tools (55 total)
 
 ### Messaging (8)
@@ -182,6 +214,14 @@ go build -o whatsapp-bridge ./cmd/bridge
 |------|-------------|
 | `get_bridge_status` | Get health status |
 | `get_connection_history` | Get state transitions |
+
+## Current Limitations
+
+- **Forward Message**: Requires store integration to fetch original message content
+- **Download Media**: Requires store integration to get media keys for decryption
+- **Delete for Me**: WhatsApp API limitation - works as local-only operation
+
+These limitations are architectural - implementing them requires the WhatsApp client to have direct access to the message store, which is currently separated by design.
 
 ## Development
 

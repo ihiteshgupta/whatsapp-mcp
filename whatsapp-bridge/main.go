@@ -25,6 +25,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -658,19 +659,25 @@ func extractMediaInfo(msg *waProto.Message) (mediaType string, filename string, 
 
 	// Check for image message
 	if img := msg.GetImageMessage(); img != nil {
-		return "image", "image_" + time.Now().Format("20060102_150405") + ".jpg",
+		// Use SHA256 hash prefix for unique filename instead of timestamp
+		hashPrefix := fmt.Sprintf("%x", img.GetFileSHA256())[:12]
+		return "image", "image_" + hashPrefix + ".jpg",
 			img.GetURL(), img.GetMediaKey(), img.GetFileSHA256(), img.GetFileEncSHA256(), img.GetFileLength()
 	}
 
 	// Check for video message
 	if vid := msg.GetVideoMessage(); vid != nil {
-		return "video", "video_" + time.Now().Format("20060102_150405") + ".mp4",
+		// Use SHA256 hash prefix for unique filename instead of timestamp
+		hashPrefix := fmt.Sprintf("%x", vid.GetFileSHA256())[:12]
+		return "video", "video_" + hashPrefix + ".mp4",
 			vid.GetURL(), vid.GetMediaKey(), vid.GetFileSHA256(), vid.GetFileEncSHA256(), vid.GetFileLength()
 	}
 
 	// Check for audio message
 	if aud := msg.GetAudioMessage(); aud != nil {
-		return "audio", "audio_" + time.Now().Format("20060102_150405") + ".ogg",
+		// Use SHA256 hash prefix for unique filename instead of timestamp
+		hashPrefix := fmt.Sprintf("%x", aud.GetFileSHA256())[:12]
+		return "audio", "audio_" + hashPrefix + ".ogg",
 			aud.GetURL(), aud.GetMediaKey(), aud.GetFileSHA256(), aud.GetFileEncSHA256(), aud.GetFileLength()
 	}
 
@@ -869,8 +876,29 @@ func downloadMedia(client *whatsmeow.Client, messageStore *MessageStore, message
 		return false, "", "", "", fmt.Errorf("failed to create chat directory: %v", err)
 	}
 
-	// Generate a local path for the file
-	localPath = fmt.Sprintf("%s/%s", chatDir, filename)
+	// Generate a unique filename using message ID to avoid overwrites
+	ext := ".bin"
+	switch mediaType {
+	case "image":
+		ext = ".jpg"
+	case "video":
+		ext = ".mp4"
+	case "audio":
+		ext = ".ogg"
+	case "document":
+		// Keep original extension for documents
+		if filename != "" {
+			ext = filepath.Ext(filename)
+			if ext == "" {
+				ext = ".bin"
+			}
+		}
+	}
+	uniqueFilename := fmt.Sprintf("%s_%s%s", mediaType, messageID, ext)
+
+	// Generate a local path for the file using unique filename
+	localPath = fmt.Sprintf("%s/%s", chatDir, uniqueFilename)
+	filename = uniqueFilename
 
 	// Get absolute path
 	absPath, err := filepath.Abs(localPath)
@@ -1431,7 +1459,7 @@ func handleDeleteChat(client *whatsmeow.Client, chatJID string) (bool, string) {
 		return false, fmt.Sprintf("Invalid chat JID: %v", err)
 	}
 
-	patch := appstate.BuildDeleteChat(chat, time.Now(), nil)
+	patch := appstate.BuildDeleteChat(chat, time.Now(), nil, false)
 	err = syncAndSendAppState(client, patch)
 	if err != nil {
 		return false, fmt.Sprintf("Failed to delete chat: %v", err)
@@ -3241,6 +3269,9 @@ func main() {
 	// Set up logger
 	logger := waLog.Stdout("Client", "INFO", true)
 	logger.Infof("Starting WhatsApp client...")
+
+	// Set device name that appears in WhatsApp's Linked Devices
+	store.SetOSInfo("MCP Server", [3]uint32{1, 0, 0})
 
 	// Create database connection for storing session data
 	dbLog := waLog.Stdout("Database", "INFO", true)
