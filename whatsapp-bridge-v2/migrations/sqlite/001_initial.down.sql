@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS transitions;
+DROP TABLE IF EXISTS bridge_state;
+DROP TABLE IF EXISTS contacts;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS chats;

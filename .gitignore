@@ -1,0 +1,35 @@
+*.db
+claude_desktop_config.json
+whatsapp.log
+*.log
+
+# Database WAL/SHM files
+*.db-shm
+*.db-wal
+
+# Compiled binaries
+whatsapp-bridge/whatsapp-bridge
+
+# Compiled binaries (V2)
+whatsapp-bridge-v2/whatsapp-bridge
+whatsapp-bridge-v2/bridge
+
+# QR code
+qrcode.png
+
+
+# SSL certificates
+certs/
+*/certs/
+
+# Store directories (contain private user data)
+whatsapp-bridge/store/
+whatsapp-bridge-v2/store/
+
+# IDE settings
+.gemini/
+*/.gemini/
+
+.env
+.env.*
+!.env.example

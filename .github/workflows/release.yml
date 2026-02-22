@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  # Build both darwin architectures on one macOS runner (Universal SDK supports cross-compilation)
+  build-darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: whatsapp-bridge-v2/go.sum
+
+      - name: Build darwin/amd64 and darwin/arm64
+        working-directory: whatsapp-bridge-v2
+        run: |
+          for ARCH in amd64 arm64; do
+            GOOS=darwin GOARCH=$ARCH CGO_ENABLED=1 go build -o whatsapp-mcp ./cmd/whatsapp-mcp
+            tar -czf whatsapp-mcp_darwin_${ARCH}.tar.gz \
+              whatsapp-mcp config.example.yaml \
+              -C .. README.md LICENSE
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-mcp_darwin_amd64
+          path: whatsapp-bridge-v2/whatsapp-mcp_darwin_amd64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-mcp_darwin_arm64
+          path: whatsapp-bridge-v2/whatsapp-mcp_darwin_arm64.tar.gz
+
+  # Build linux architectures on Ubuntu
+  build-linux:
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+          - goarch: arm64
+            cc: aarch64-linux-gnu-gcc
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: whatsapp-bridge-v2/go.sum
+
+      - name: Install ARM64 cross-compiler
+        if: matrix.goarch == 'arm64'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build linux/${{ matrix.goarch }}
+        working-directory: whatsapp-bridge-v2
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+          CC: ${{ matrix.cc }}
+        run: |
+          go build -o whatsapp-mcp ./cmd/whatsapp-mcp
+          tar -czf whatsapp-mcp_linux_${{ matrix.goarch }}.tar.gz \
+            whatsapp-mcp config.example.yaml \
+            -C .. README.md LICENSE
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whatsapp-mcp_linux_${{ matrix.goarch }}
+          path: whatsapp-bridge-v2/whatsapp-mcp_linux_${{ matrix.goarch }}.tar.gz
+
+  release:
+    needs: [build-darwin, build-linux]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            dist/*.tar.gz \
+            dist/checksums.txt \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --repo "${{ github.repository }}"
+
+      - name: Update Homebrew formula
+        env:
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_GITHUB_TOKEN" ]; then
+            echo "HOMEBREW_TAP_GITHUB_TOKEN not set — skipping Homebrew formula update"
+            exit 0
+          fi
+          VERSION="${{ github.ref_name }}"
+          AMD64_SHA=$(sha256sum dist/whatsapp-mcp_darwin_amd64.tar.gz | awk '{print $1}')
+          ARM64_SHA=$(sha256sum dist/whatsapp-mcp_darwin_arm64.tar.gz | awk '{print $1}')
+
+          mkdir -p Formula
+          cat > Formula/whatsapp-mcp.rb << FORMULA
+          class WhatsappMcp < Formula
+            desc "MCP server for WhatsApp — single Go binary, 55 tools, no Python required"
+            homepage "https://github.com/ihiteshgupta/whatsapp-mcp"
+            version "${VERSION#v}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/ihiteshgupta/whatsapp-mcp/releases/download/${VERSION}/whatsapp-mcp_darwin_arm64.tar.gz"
+                sha256 "${ARM64_SHA}"
+              else
+                url "https://github.com/ihiteshgupta/whatsapp-mcp/releases/download/${VERSION}/whatsapp-mcp_darwin_amd64.tar.gz"
+                sha256 "${AMD64_SHA}"
+              end
+            end
+
+            def install
+              bin.install "whatsapp-mcp"
+            end
+
+            test do
+              system "#{bin}/whatsapp-mcp", "--help"
+            end
+          end
+          FORMULA
+
+          REPO_URL="https://x-access-token:${HOMEBREW_TAP_GITHUB_TOKEN}@github.com/ihiteshgupta/homebrew-tap.git"
+          git clone "${REPO_URL}" homebrew-tap
+          mkdir -p homebrew-tap/Formula
+          cp Formula/whatsapp-mcp.rb homebrew-tap/Formula/
+          cd homebrew-tap
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add Formula/whatsapp-mcp.rb
+          git commit -m "Update whatsapp-mcp to ${VERSION}"
+          git push
